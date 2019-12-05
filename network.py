@@ -4,7 +4,7 @@
 import os, sys, getopt, time
 
 NET_PATH = './'
-ADDR_SPACE = 'ABC'
+ADDR_SPACE = 'ABCS'
 CLEAN = False
 TIMEOUT = 0.500  # 500 millisec
 

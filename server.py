@@ -2,14 +2,36 @@
 #sender.py
 
 import os, sys, getopt, time
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_OAEP, AES
+from Crypto import Random
 from netinterface import network_interface
 
 NET_PATH = './'
-OWN_ADDR = 'A'
+OWN_ADDR = 'S'
 
 # ------------       
 # main program
 # ------------
+netif = network_interface(NET_PATH, OWN_ADDR)
+while True:
+# Calling receive_msg() in non-blocking mode ...
+#	status, msg = netif.receive_msg(blocking=False)
+#	if status: print(msg)      # if status is True, then a message was returned in msg
+#	else: time.sleep(2)        # otherwise msg is empty
+
+# Calling receive_msg() in blocking mode ...
+	status, msg = netif.receive_msg(blocking=True)      # when returns, status is True and msg contains a message
+	if status:
+		header = msg[:msg.find('|'.encode())]
+		if header.decode() == 'SERVER_AUTH':
+			server_privatekey = RSA.import_key(open('server_keys/server_privatekey.pem').read())
+			pk_cipher = PKCS1_OAEP.new(server_privatekey)
+			dec_msg = pk_cipher.decrypt(msg[msg.find('|'.encode())+1:])
+			print(dec_msg.decode())
+	# print(msg.decode('utf-8'))
+
+
 
 try:
 	opts, args = getopt.getopt(sys.argv[1:], shortopts='hp:a:', longopts=['help', 'path=', 'addr='])
@@ -39,7 +61,7 @@ if OWN_ADDR not in network_interface.addr_space:
 	sys.exit(1)
 
 # main loop
-netif = network_interface(NET_PATH, OWN_ADDR)
+
 print('Main loop started...')
 while True:
 	msg = input('Type a message: ')

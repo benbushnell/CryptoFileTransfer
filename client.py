@@ -2,14 +2,48 @@
 #sender.py
 
 import os, sys, getopt, time
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_OAEP, AES
+from Crypto import Random
 from netinterface import network_interface
 
 NET_PATH = './'
 OWN_ADDR = 'A'
-
+SERVER = 'S'
 # ------------       
 # main program
 # ------------
+
+netif = network_interface(NET_PATH, OWN_ADDR)
+
+keys = RSA.generate(2048)
+
+# getting server publickey
+server_publickey = RSA.import_key(open('server_keys/server_publickey.pem').read())
+
+p = keys.publickey().export_key()
+# Private key is d
+# not stored for now
+d = keys.export_key()
+# 256 bit random nonce
+nonce = Random.get_random_bytes(32)
+
+t = time.time()
+print(t)
+
+msg = str(nonce) + "|" + str(p) + "|" + str(t)
+print(nonce)
+print("")
+print(p)
+
+pk_cipher = PKCS1_OAEP.new(server_publickey)
+
+enc_msg = pk_cipher.encrypt(msg.encode())
+msg_header = 'SERVER_AUTH|'.encode()
+enc_msg = msg_header + enc_msg
+
+netif.send_msg(SERVER, enc_msg)
+
 
 try:
 	opts, args = getopt.getopt(sys.argv[1:], shortopts='hp:a:', longopts=['help', 'path=', 'addr='])
