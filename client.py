@@ -2,7 +2,10 @@
 #sender.py
 
 import os, sys, getopt, time
+from Crypto.Cipher import AES
 from Crypto.PublicKey import RSA
+from Crypto.Signature import pss
+from Crypto.Hash import SHA256
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto import Random
 from netinterface import network_interface
@@ -16,7 +19,7 @@ SERVER = 'S'
 
 netif = network_interface(NET_PATH, OWN_ADDR)
 
-keys = RSA.generate(2048)
+keys = RSA.generate(2048)\
 
 # getting server publickey
 server_publickey = RSA.import_key(open('server_keys/server_publickey.pem').read())
@@ -31,19 +34,16 @@ nonce = Random.get_random_bytes(32)
 t = time.time()
 print(t)
 
-msg = str(nonce) + "|" + str(p) + "|" + str(t)
-print(nonce)
-print("")
-print(p)
+msg1 = str(p) + "|" + str(t)
+h = SHA256.new(msg1.encode())
+signature = pss.new(server_publickey).sign(h)
 
-pk_cipher = PKCS1_OAEP.new(server_publickey)
+msg = str(msg1) + "|" + str(signature)
 
-enc_msg = pk_cipher.encrypt(msg.encode())
 msg_header = 'SERVER_AUTH|'.encode()
-enc_msg = msg_header + enc_msg
+full_msg = msg_header + msg
 
-netif.send_msg(SERVER, enc_msg)
-
+netif.send_msg(SERVER, full_msg)
 
 try:
 	opts, args = getopt.getopt(sys.argv[1:], shortopts='hp:a:', longopts=['help', 'path=', 'addr='])
