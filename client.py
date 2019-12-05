@@ -8,6 +8,7 @@ from Crypto.Signature import pss
 from Crypto.Hash import SHA256
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto import Random
+from Crypto.Util import Padding
 from netinterface import network_interface
 
 NET_PATH = './'
@@ -34,16 +35,28 @@ nonce = Random.get_random_bytes(32)
 t = time.time()
 print(t)
 
-msg1 = str(p) + "|" + str(t)
-h = SHA256.new(msg1.encode())
-signature = pss.new(server_publickey).sign(h)
+msg = str(p) + "|" + str(t)
+# h = SHA256.new(msg1.encode())
+# signature = pss.new(server_publickey).sign(h)
 
-msg = str(msg1) + "|" + str(signature)
+RSAcipher = PKCS1_OAEP.new(server_publickey)
+
+symkey = Random.get_random_bytes(32)  # we need a 256-bit (32-byte) AES key
+iv = Random.get_random_bytes(AES.block_size)
+AEScipher = AES.new(symkey, AES.MODE_CBC, iv)
+
+# msg = str(msg1) + "|" + str(signature)
 
 msg_header = 'SERVER_AUTH|'.encode()
-full_msg = msg_header + msg
+full_msg = msg_header + msg.encode()
+padded_full_msg = Padding.pad(full_msg, AES.block_size, style='pkcs7')
 
-netif.send_msg(SERVER, full_msg)
+enc_msg = AEScipher.encrypt(padded_full_msg)
+enc_symkey = RSAcipher.encrypt(symkey)
+
+enc_msg = enc_msg + enc_symkey
+
+netif.send_msg(SERVER, enc_msg)
 
 try:
 	opts, args = getopt.getopt(sys.argv[1:], shortopts='hp:a:', longopts=['help', 'path=', 'addr='])
