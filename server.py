@@ -8,11 +8,14 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto import Random
 from Crypto.Signature import pss
+from Crypto.Util import Padding
 
 from netinterface import network_interface
 
 NET_PATH = './'
 OWN_ADDR = 'S'
+CLIENT = 'A'
+user_public_key = None
 
 # ------------       
 # main program
@@ -30,16 +33,31 @@ while True:
         header = msg[:msg.find('|'.encode())]
     if header.decode() == 'SERVER_AUTH':
         server_privatekey = RSA.import_key(open('server_keys/server_privatekey.pem').read())
-        msg_parts = msg.split("|")
-        print(msg_parts)
-        h = SHA256.new(msg_parts[1])
-        verifier = pss.new(server_privatekey)
-        try:
-            verifier.verify(h, msg_parts[2])
-            print("The signature is authentic.")
-        except (ValueError, TypeError):
-            print("The signature is not authentic.")
-# print(msg.decode('utf-8'))
+        # decrypt symmetric key
+        aes_key_enc = msg[-256:]
+        pkcs_cipher = PKCS1_OAEP.new(server_privatekey)
+        aes_key = pkcs_cipher.decrypt(aes_key_enc)
+        # decrypt user's public key and nonce
+        beginning_of_iv = msg.find('|'.encode()) + 1
+        end_of_iv = msg.find('|'.encode())+1+AES.block_size
+        iv = msg[beginning_of_iv:end_of_iv]
+        aes_cipher = AES.new(aes_key, AES.MODE_CBC, iv)
+        nonce_len = 32
+        user_public_key_len = 450
+        key_and_nonce = aes_cipher.decrypt(msg[end_of_iv:end_of_iv+user_public_key_len+nonce_len+14])
+        key_and_nonce = Padding.unpad(key_and_nonce, AES.block_size)
+        user_public_key = key_and_nonce[:user_public_key_len]
+        nonce = key_and_nonce[user_public_key_len:]
+        # generate a timestamp
+        t = str(time.time()).encode()
+        # encrypt with aes key
+        nonce_and_timestamp_msg = nonce + t
+        # Create new IV and append to encrypted nonce and timestamp
+        new_iv = Random.get_random_bytes(AES.block_size)
+        new_aes_cipher = AES.new(aes_key, AES.MODE_CBC, new_iv)
+        padded_full_msg = Padding.pad(nonce_and_timestamp_msg, AES.block_size, style='pkcs7')
+        to_client_msg = new_iv + new_aes_cipher.encrypt(padded_full_msg)
+        netif.send_msg(CLIENT, to_client_msg)
 
 
 try:

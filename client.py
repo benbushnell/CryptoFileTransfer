@@ -20,24 +20,27 @@ SERVER = 'S'
 
 netif = network_interface(NET_PATH, OWN_ADDR)
 
-keys = RSA.generate(2048)\
+keys = RSA.generate(2048)
 
+# ----------------------------
+# ------ PROTOCOL PT 1 -------
+# ----------------------------
 # getting server publickey
 server_publickey = RSA.import_key(open('server_keys/server_publickey.pem').read())
 
 p = keys.publickey().export_key()
+#print(len(p))
 # Private key is d
 # not stored for now
 d = keys.export_key()
 # 256 bit random nonce
 nonce = Random.get_random_bytes(32)
 
+# saving this to verify against server timestamp
 t = time.time()
-print(t)
 
-msg = str(p) + "|" + str(t)
-# h = SHA256.new(msg1.encode())
-# signature = pss.new(server_publickey).sign(h)
+# create message to be encrypted
+msg = p + nonce
 
 RSAcipher = PKCS1_OAEP.new(server_publickey)
 
@@ -45,18 +48,32 @@ symkey = Random.get_random_bytes(32)  # we need a 256-bit (32-byte) AES key
 iv = Random.get_random_bytes(AES.block_size)
 AEScipher = AES.new(symkey, AES.MODE_CBC, iv)
 
-# msg = str(msg1) + "|" + str(signature)
-
-msg_header = 'SERVER_AUTH|'.encode()
-full_msg = msg_header + msg.encode()
-padded_full_msg = Padding.pad(full_msg, AES.block_size, style='pkcs7')
-
+msg_header = 'SERVER_AUTH'.encode() + '|'.encode() + iv
+padded_full_msg = Padding.pad(msg, AES.block_size, style='pkcs7')
 enc_msg = AEScipher.encrypt(padded_full_msg)
 enc_symkey = RSAcipher.encrypt(symkey)
 
-enc_msg = enc_msg + enc_symkey
+full_msg = msg_header + enc_msg + enc_symkey
 
-netif.send_msg(SERVER, enc_msg)
+netif.send_msg(SERVER, full_msg)
+
+# wait for response
+status, svr_msg = netif.receive_msg(blocking=True)
+new_aes_cipher = AES.new(symkey, AES.MODE_CBC, svr_msg[:AES.block_size])
+msg_received = new_aes_cipher.decrypt(svr_msg[AES.block_size:])
+msg_received = Padding.unpad(msg_received, AES.block_size)
+if nonce != msg_received[:32]:
+	print("Invalid nonce returned by server. Terminating connection attempt.")
+	exit(1)
+if t - float(msg_received[32:]) > 120:
+	print("Terminating connection request.")
+	exit(1)
+print("Successfully authenticated server.")
+
+# TODO
+# ----------------------------
+# ------ PROTOCOL PT 2 -------
+# ----------------------------
 
 try:
 	opts, args = getopt.getopt(sys.argv[1:], shortopts='hp:a:', longopts=['help', 'path=', 'addr='])
