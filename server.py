@@ -49,7 +49,6 @@ if header.decode() == 'SERVER_AUTH':
     key_and_nonce = aes_cipher.decrypt(msg[end_of_iv:end_of_iv+user_public_key_len+nonce_len+14])
     key_and_nonce = Padding.unpad(key_and_nonce, AES.block_size)
     user_public_key = RSA.import_key(key_and_nonce[:user_public_key_len])
-    print()
     nonce = key_and_nonce[user_public_key_len:]
     # generate a timestamp
     t = str(time.time()).encode()
@@ -82,9 +81,7 @@ if serverauthcode == 1:
             msg = aes_cipher.decrypt(msg[end_of_iv:-256])
             msg = Padding.unpad(msg, AES.block_size)
             first_delim = msg.find("|".encode())
-            print(first_delim)
             pwmsg_len = msg[:first_delim]
-            print(pwmsg_len.decode())
             pwmsg_len = int(pwmsg_len.decode())
             msg = msg[first_delim + 1:]
             sighashpwmsg = msg[pwmsg_len:]
@@ -96,46 +93,54 @@ if serverauthcode == 1:
                 print("The signature is authentic")
                 pwmsg_parts = pwmsg.split("|".encode())
                 uid = pwmsg_parts[0]
+                ts = pwmsg_parts[2]
                 pwd_hash = SHA256.new(pwmsg_parts[1])
-                with open('info.json') as json_file:
-                    data = json.load(json_file)
-                    # check the user ID exists
-                    if pwmsg_parts[0].decode() in data:
-                        print(pwd_hash.hexdigest())
-                        print(data[uid.decode()])
-                        # check password
-                        if pwd_hash.hexdigest() == data[uid.decode()].lower():
-                            # TODO: Remove this line, we're not logged in yet
-                            print("logged in")
-                            # Generate symmetric key (K_us) with scrypt
-                            salt = get_random_bytes(16)
-                            key = scrypt(pwmsg_parts[1].decode(), salt.decode(), 16, N=2**14, r=8, p=1)
-                            # generate a timestamp
-                            t = str(time.time()).encode()
-                            msg_symm = key + t
-                            # hash message
-                            hash_msg_symm = SHA256.new(msg_symm)
-                            sig_hash_msg_symm = verifier.sign(server_privatekey)
-                            final_msg = msg_symm + sig_hash_msg_symm
-                            pkcs_cipher = PKCS1_OAEP.new(user_public_key)
+                if time.time() - float(ts) > 120:
+                    print("Timestamp error")
+                    ##
+                    ##
+                    #Todo: Send user error message
+                    ##
+                    ##
+                else:
+                    with open('info.json') as json_file:
+                        data = json.load(json_file)
+                        # check the user ID exists
+                        if pwmsg_parts[0].decode() in data:
+                            # check password
+                            if pwd_hash.hexdigest() == data[uid.decode()].lower():
+                                # TODO: Remove this line, we're not logged in yet
+                                print("logged in")
+                                # Generate symmetric key (K_us) with scrypt
+                                salt = get_random_bytes(16)
+                                key = scrypt(pwmsg_parts[1].decode(), salt, 16, N=2**14, r=8, p=1)
+                                # generate a timestamp
+                                t = str(time.time()).encode()
+                                msg_symm = key + t
+                                # hash message
+                                hash_msg_symm = SHA256.new(msg_symm)
+                                sig_hash_msg_symm = pss.new(server_privatekey).sign(hash_msg_symm)
+                                final_msg = msg_symm + "|".encode() + sig_hash_msg_symm
+                                pkcs_cipher = PKCS1_OAEP.new(user_public_key)
 
-                            #hybrid again
-                            rand_key = Random.get_random_bytes(32)
-                            new_iv = Random.get_random_bytes(AES.block_size)
-                            new_aes_cipher = AES.new(rand_key, AES.MODE_CBC, new_iv)
-                            padded_final_msg = Padding.pad(final_msg, AES.block_size, style='pkcs7')
-                            to_client_msg = new_iv + new_aes_cipher.encrypt(padded_final_msg)
+                                #hybrid again
+                                rand_key = Random.get_random_bytes(32)
+                                new_iv = Random.get_random_bytes(AES.block_size)
+                                new_aes_cipher = AES.new(rand_key, AES.MODE_CBC, new_iv)
+                                padded_final_msg = Padding.pad(final_msg, AES.block_size, style='pkcs7')
+                                to_client_msg = new_iv + new_aes_cipher.encrypt(padded_final_msg)
 
-                            enc_rand_key = pkcs_cipher.encrypt(rand_key)
-                            netif.send_msg(CLIENT, to_client_msg+enc_rand_key)
+                                enc_rand_key = pkcs_cipher.encrypt(rand_key)
+                                full_msg = to_client_msg + enc_rand_key
+                                netif.send_msg(CLIENT, full_msg)
 
 
+                            else:
+                                print("incorrect password")
+                                exit(1)
                         else:
-                            print("incorrect password")
+                            print("incorrect username")
                             exit(1)
-                    else:
-                        print("incorrect username")
-                        exit(1)
             except (ValueError, TypeError) as e:
                 print(e)
                 print("The signature is not authentic!")
