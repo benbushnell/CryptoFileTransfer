@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # sender.py
 
-import os, sys, getopt, time
+import os, sys, getopt, time, json
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
@@ -9,6 +9,8 @@ from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto import Random
 from Crypto.Signature import pss
 from Crypto.Util import Padding
+from Crypto.Protocol.KDF import scrypt
+from Crypto.Random import get_random_bytes
 
 from netinterface import network_interface
 
@@ -85,28 +87,67 @@ if serverauthcode == 1:
             print(pwmsg_len.decode())
             pwmsg_len = int(pwmsg_len.decode())
             msg = msg[first_delim + 1:]
-            hashpwmsg = msg[pwmsg_len:]
+            sighashpwmsg = msg[pwmsg_len:]
             pwmsg= msg[:pwmsg_len]
             server_hash = SHA256.new(pwmsg)
             verifier = pss.new(user_public_key)
             try:
-                verifier.verify(server_hash, hashpwmsg)
+                verifier.verify(server_hash, sighashpwmsg)
                 print("The signature is authentic")
                 pwmsg_parts = pwmsg.split("|".encode())
+                uid = pwmsg_parts[0]
+                pwd_hash = SHA256.new(pwmsg_parts[1])
+                with open('info.json') as json_file:
+                    data = json.load(json_file)
+                    # check the user ID exists
+                    if pwmsg_parts[0].decode() in data:
+                        print(pwd_hash.hexdigest())
+                        print(data[uid.decode()])
+                        # check password
+                        if pwd_hash.hexdigest() == data[uid.decode()].lower():
+                            # TODO: Remove this line, we're not logged in yet
+                            print("logged in")
+                            # Generate symmetric key (K_us) with scrypt
+                            salt = get_random_bytes(16)
+                            key = scrypt(pwmsg_parts[1].decode(), salt.decode(), 16, N=2**14, r=8, p=1)
+                            # generate a timestamp
+                            t = str(time.time()).encode()
+                            msg_symm = key + t
+                            # hash message
+                            hash_msg_symm = SHA256.new(msg_symm)
+                            sig_hash_msg_symm = verifier.sign(server_privatekey)
+                            final_msg = msg_symm + sig_hash_msg_symm
+                            pkcs_cipher = PKCS1_OAEP.new(user_public_key)
 
-            except (ValueError, TypeError):
+                            #hybrid again
+                            rand_key = Random.get_random_bytes(32)
+                            new_iv = Random.get_random_bytes(AES.block_size)
+                            new_aes_cipher = AES.new(rand_key, AES.MODE_CBC, new_iv)
+                            padded_final_msg = Padding.pad(final_msg, AES.block_size, style='pkcs7')
+                            to_client_msg = new_iv + new_aes_cipher.encrypt(padded_final_msg)
+
+                            enc_rand_key = pkcs_cipher.encrypt(rand_key)
+                            netif.send_msg(CLIENT, to_client_msg+enc_rand_key)
+
+
+                        else:
+                            print("incorrect password")
+                            exit(1)
+                    else:
+                        print("incorrect username")
+                        exit(1)
+            except (ValueError, TypeError) as e:
+                print(e)
                 print("The signature is not authentic!")
-            nonce = key_and_nonce[user_public_key_len:]
-            # generate a timestamp
-            t = str(time.time()).encode()
-            # encrypt with aes key
-            nonce_and_timestamp_msg = nonce + t
+                exit(1)
+
+
             # Create new IV and append to encrypted nonce and timestamp
-            new_iv = Random.get_random_bytes(AES.block_size)
+            ''' new_iv = Random.get_random_bytes(AES.block_size)
             new_aes_cipher = AES.new(aes_key, AES.MODE_CBC, new_iv)
             padded_full_msg = Padding.pad(nonce_and_timestamp_msg, AES.block_size, style='pkcs7')
             to_client_msg = new_iv + new_aes_cipher.encrypt(padded_full_msg)
-            netif.send_msg(CLIENT, to_client_msg)
+            netif.send_msg(CLIENT, to_client_msg)'''
     else:
         print("Server must be authenticated first. Please restart protocol.")
 
