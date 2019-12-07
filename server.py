@@ -93,6 +93,16 @@ if serverauthcode == 1:
                 verifier.verify(server_hash, hashpwmsg)
                 print("The signature is authentic")
                 pwmsg_parts = pwmsg.split("|".encode())
+                uid = pwmsg_parts[0]
+                pwhash = SHA256.new(pwmsg_parts[1])
+                ts = pwmsg_parts[2]
+                if time.time() - float(ts) > 120:
+                    print("Message too old, terminating connection.")
+                    ##
+                    ##
+                    ## Todo
+                    # Send the user an error message and quit
+                else:
 
             except (ValueError, TypeError):
                 print("The signature is not authentic!")
