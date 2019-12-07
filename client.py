@@ -10,6 +10,7 @@ from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto import Random
 from Crypto.Util import Padding
 from netinterface import network_interface
+from getpass import getpass
 
 NET_PATH = './'
 OWN_ADDR = 'A'
@@ -41,7 +42,6 @@ t = time.time()
 
 # create message to be encrypted
 msg = p + nonce
-
 RSAcipher = PKCS1_OAEP.new(server_publickey)
 
 symkey = Random.get_random_bytes(32)  # we need a 256-bit (32-byte) AES key
@@ -74,6 +74,32 @@ print("Successfully authenticated server.")
 # ----------------------------
 # ------ PROTOCOL PT 2 -------
 # ----------------------------
+
+uid = input("Enter User ID: ")
+password = getpass("Enter Password: ")
+
+pwmsg = uid + "|" + password + "|"+ str(time.time())
+msglen = str(len(pwmsg))
+
+#RSA PSS protocol for signature
+hashpwdmsg = SHA256.new(pwmsg.encode())
+print(type(hashpwdmsg))
+sigpwdmsg = pss.new(keys).sign(hashpwdmsg)
+
+#RSA-AES Hybrid encryption setup
+symkey = Random.get_random_bytes(32)
+iv = Random.get_random_bytes(AES.block_size)
+AEScipher = AES.new(symkey, AES.MODE_CBC, iv)
+
+#Building the message
+msg_header = 'USER_AUTH'.encode() + '|'.encode() + iv
+padded_full_msg = Padding.pad((msglen + "|" + pwmsg).encode() + sigpwdmsg, AES.block_size, style='pkcs7')
+enc_msg = AEScipher.encrypt(padded_full_msg)
+enc_symkey = RSAcipher.encrypt(symkey)
+
+full_msg = msg_header + enc_msg + enc_symkey
+#Sending the message
+netif.send_msg(SERVER, full_msg)
 
 try:
 	opts, args = getopt.getopt(sys.argv[1:], shortopts='hp:a:', longopts=['help', 'path=', 'addr='])
