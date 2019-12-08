@@ -74,6 +74,8 @@ status, svr_msg = netif.receive_msg(blocking=False)
 # ----------------------------
 
 uid = input("Enter User ID: ")
+
+##TODO: Garbage collect password
 password = getpass("Enter Password: ")
 
 pwmsg = uid + "|" + password + "|" + str(time.time())
@@ -121,18 +123,18 @@ else:
 ----------------------------
 '''
 
-cipher = AES.new(session_key, AES.MODE_GCM)
+cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
 
 
 def non_file_op(operation, argument):
     print('Performing operation...')
     if argument is None:
-        ciphertext, mac_tag = cipher.encrypt_and_digest((str(time.time()) + operation).encode())
-        msg_3 = "NON_FILE_OP_NO_ARG|".encode() + cipher.nonce + ciphertext + mac_tag
+        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + operation).encode())
+        msg_3 = "NON_FILE_OP_NO_ARG|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
     else:
-        ciphertext, mac_tag = cipher.encrypt_and_digest((str(time.time()) + "|" + operation + argument).encode())
-        msg_3 = "NON_FILE_OP_ARG|".encode() + cipher.nonce + ciphertext + mac_tag
+        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|" + operation + argument).encode())
+        msg_3 = "NON_FILE_OP_ARG|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
 
 
@@ -143,8 +145,8 @@ def upload(filepath):
     except FileNotFoundError:
         print('Could not find file. Please try again.')
         return
-    ciphertext, mac_tag = cipher.encrypt_and_digest((str(time.time()) + "|").encode() + f.read())
-    msg_3 = "UPLOAD|".encode() + cipher.nonce + ciphertext + mac_tag
+    ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|").encode() + f.read())
+    msg_3 = "UPLOAD|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
     netif.send_msg(SERVER, msg_3)
 
 

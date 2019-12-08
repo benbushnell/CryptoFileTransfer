@@ -21,6 +21,11 @@ OWN_ADDR = 'S'
 CLIENT = 'A'
 user_auth_public_key = None
 user_enc_public_key = None
+user_path_dic = {"ben": "ben's folder",
+  "kevin": "kevin's folder'",
+  "michelle": "michelle's folder'",
+  "conrad": "conrad's folder'",
+  "levente": "levente's folder"}
 passphrase = None
 
 # ------------       
@@ -28,6 +33,7 @@ passphrase = None
 # ------------
 netif = network_interface(NET_PATH, OWN_ADDR)
 serverauth = False
+valid_headers_protocol_3 = ["NON_FILE_OP_NO_ARG", "NON_FILE_OP_ARG", "UPLOAD"]
 
 
 # ----------------------------
@@ -94,7 +100,7 @@ if serverauth:
                     exit(1)
                     # TODO: Send user error message
                 else:
-                    with open('info.json') as json_file:
+                    with open('server_machine/info.json') as json_file:
                         data = json.load(json_file)
                         # check the user ID exists
                         if pwmsg_parts[0].decode() in data:
@@ -102,10 +108,10 @@ if serverauth:
                             if pwd_hash.hexdigest() == data[uid.decode()].lower():
                                 # Generate symmetric key (K_us) with scrypt
                                 salt = get_random_bytes(16)
-                                key = scrypt(pwmsg_parts[1].decode(), salt, 16, N=2**14, r=8, p=1)
+                                session_key = scrypt(pwmsg_parts[1].decode(), salt, 16, N=2 ** 14, r=8, p=1)
                                 # generate a timestamp
                                 t = str(time.time()).encode()
-                                msg_symm = key + t
+                                msg_symm = session_key + t
                                 # hash message
                                 hash_msg_symm = SHA256.new(msg_symm)
                                 # sign the hash
@@ -126,14 +132,29 @@ if serverauth:
             else:
                 print("The signature is not authentic!")
                 exit(1)
-    else:
-        print("Server must be authenticated first. Please restart protocol.")
-        exit(1)
+else:
+    print("Server must be authenticated first. Please restart protocol.")
+    ##Todo: Server Auth Error
+    exit(1)
+status, msg = netif.receive_msg(blocking=False)
 
 # ----------------------------
 # ------ PROTOCOL PT 3 -------
 # ----------------------------
 
+def move_to_user_dir(uid):
+    print("DO THIS")
+
+
+def change_dir(f):
+    try:
+        os.chdir(os.path.join(os.getcwd(), f))
+        print("Changed to directory {0}.".format(os.path.basename(os.getcwd())))
+    except Exception as e:
+        print(e)
+
+def non_file_op(operation, argument):
+    print("non file op")
 
 
 try:
@@ -167,6 +188,55 @@ for opt, arg in opts:
 
 print('Main loop started...')
 while True:
+    status, msg = netif.receive_msg(blocking=True)
+    if status:
+        #grab header
+        header = msg[:msg.find('|'.encode())].decode()
+        #remove header
+        msg = msg[msg.find('|'.encode()) + 1:]
+        #check header
+        if header not in valid_headers_protocol_3:
+            print("eat my ass")
+            #TODO: Invalid header error
+        else:
+            # msg format: Nonce (16 bytes) + Ciphertext + MacTag (16 bytes)
+            nonce = msg[:16]
+            mac_tag = msg[-16:]
+            ciphertext = msg[16:-16]
+            cipher = AES.new(session_key, AES.MODE_GCM, nonce)
+        try:
+            plaintext = cipher.decrypt_and_verify(ciphertext, mac_tag)
+        except (ValueError, KeyError):
+            print("Invalid Decryption")
+            # TODO: Error Handling
+        if header == "NON_FILE_OP_NO_ARG":
+            # plaintext format: Ts | operation
+            ts = float(plaintext[:-3].decode())
+            operation = plaintext[-3:].decode()
+            if functions.is_timestamp_valid(time.time(), ts):
+                non_file_op(operation, None)
+            else:
+                print("Timestamp Error")
+                #Todo: Timestamp error
+        elif header == "NON_FILE_OP_ARG":
+            # plaintext format: Ts | operation + argument
+            delim_pos = plaintext.find("|".encode())
+            ts = float(plaintext[:delim_pos].decode())
+            operation = plaintext[delim_pos + 1: delim_pos + 4]
+            argument = plaintext[delim_pos + 4:]
+            if functions.is_timestamp_valid(time.time(), ts):
+                non_file_op(operation, argument)
+            else:
+                print("Timestamp Error")
+                #TODO: Timestamp Error
+        elif header == "UPLOAD":
+            # plaintext format: Ts | file
+            delim_pos = plaintext.find("|".encode())
+            ts = float(plaintext[:delim_pos].decode())
+            file = plaintext[delim_pos + 1:]
+
+
+
     msg = input('Type a message: ')
     dst = input('Type a destination address: ')
 
