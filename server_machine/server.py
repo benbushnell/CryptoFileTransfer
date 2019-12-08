@@ -154,13 +154,28 @@ def change_dir(f):
     except Exception as e:
         print(e)
 
+
+def gwd():
+    print("Current working directory: {0}".format(os.path.basename(os.getcwd())))
+
 #Moving to the folder of the user who just logged in.
 path = user_path_dic[uid]
 change_dir(path)
 
+#Todo: Prevent user from moving outside of their own folder.
+
 def non_file_op(operation, argument):
-    print("ben is working on this")
-    #if argument is None:
+    print("conrad start here")
+    if argument is None:
+        if operation == "GWD":
+            # should return the directory beyond the user root file.
+            print("return directory and then send message")
+        #GWD and LST are the only argument none commands
+        elif operation == "LST":
+            #should return the contents of the current directory, or an empty msg if empty
+            print("")
+    else:
+        print("handle all the non-file (not upload) operations")
 
 
 
