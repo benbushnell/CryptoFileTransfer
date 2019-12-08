@@ -102,7 +102,13 @@ netif.send_msg(SERVER, full_msg)
 # Listening for response
 status, svr_msg = netif.receive_msg(blocking=True)
 
+# checking header
+header = svr_msg[:svr_msg.find('|'.encode())]
+# remove header
+svr_msg = svr_msg[svr_msg.find('|'.encode()) + 1:]
+
 # Decrypt message body
+print(header.decode())
 msg_received = functions.rsa_hybrid_decrypt(svr_msg, user_enc_keys)
 
 # chop off the key so that we don't find an early delimiter
@@ -113,12 +119,24 @@ if sig_verified:
 else:
     print("The signature is not authentic!")
     exit(1)
-if not functions.is_timestamp_valid(time.time(), float(msg_key[16:])):
-    print("Terminating connection request.")
+
+if header.decode() == "ERR":
+
+    if not functions.is_timestamp_valid(time.time(), float(msg_key[msg_key.find("|".encode())+1:])):
+        print("Terminating connection request.")
+    else:
+        msg = msg_key[:msg_key.find("|".encode())]
+        print(msg.decode())
     exit(1)
-else:
-    session_key = msg_key[:16]
-    print("Logged in, session key retrieved")
+elif header.decode() == "VALID":
+    if not functions.is_timestamp_valid(time.time(), float(msg_key[16:])):
+        print("Terminating connection request.")
+        exit(1)
+    else:
+        session_key = msg_key[:16]
+        print("Logged in, session key retrieved")
+
+
     status, svr_msg = netif.receive_msg(blocking=False)
 
 '''

@@ -6,6 +6,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import pss
 from Crypto.Hash import SHA256
 from Crypto.Util import Padding
+import time
 
 
 # rsa_hybrid_encrypt msg is the part of the message that you wish to encrypt
@@ -63,6 +64,18 @@ def verify_signature(msg, publickey):
         print(e)
         return False, ""
 
+def error_msg(error_msg, auth_privatekey, enc_publickey):
+    error_header = "ERR|".encode()
+    t = str(time.time()).encode()
+    error_msg = error_msg.encode() + "|".encode() + t
+
+    hash_error_msg = SHA256.new(error_msg)
+    sig_hash_error_msg = pss.new(auth_privatekey).sign(hash_error_msg)
+
+    full_error_msg = (str(len(error_msg)) + "|").encode() + error_msg
+    enc_full_error_msg = rsa_hybrid_encrypt(full_error_msg + sig_hash_error_msg, enc_publickey)
+
+    return error_header + enc_full_error_msg
 
 def get_filename(filepath):
     return os.path.basename(filepath)
