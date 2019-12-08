@@ -69,8 +69,8 @@ if t - float(msg_received[32:]) > 120:
 	print("Terminating connection request.")
 	exit(1)
 print("Successfully authenticated server.")
+status, svr_msg = netif.receive_msg(blocking=False)
 
-# TODO
 # ----------------------------
 # ------ PROTOCOL PT 2 -------
 # ----------------------------
@@ -100,6 +100,50 @@ enc_symkey = RSAcipher.encrypt(symkey)
 full_msg = msg_header + enc_msg + enc_symkey
 #Sending the message
 netif.send_msg(SERVER, full_msg)
+
+#Listening for response
+status, svr_msg = netif.receive_msg(blocking=True)
+
+#grabbing AES key to decrypt message body
+aes_key_enc = svr_msg[-256:]
+#uses private key
+pkcs_cipher = PKCS1_OAEP.new(keys)
+aes_key = pkcs_cipher.decrypt(aes_key_enc)
+#grabbing only AES-encrypted message body
+msg_no_key = svr_msg[:-256]
+new_aes_cipher = AES.new(aes_key, AES.MODE_CBC, msg_no_key[:AES.block_size])
+msg_received = new_aes_cipher.decrypt(msg_no_key[AES.block_size:])
+#decrypted message body
+msg_received = Padding.unpad(msg_received, AES.block_size)
+#chop off the key so that we don't find an early delimiter
+find_delim = msg_received[16:]
+#the index of where the signature actually starts b/c we know key length is 16
+sig_start = find_delim.find("|".encode()) + 17
+msg_sig = msg_received[sig_start:]
+msg_key = msg_received[:sig_start - 1]
+user_hash = SHA256.new(msg_key)
+verifier = pss.new(server_publickey)
+try:
+	verifier.verify(user_hash, msg_sig)
+	print("The signature is authentic")
+except (ValueError, TypeError) as e:
+	print(e)
+	print("The signature is not authentic!")
+	exit(1)
+if time.time() - float(msg_key[16:]) > 120:
+	print("Terminating connection request.")
+	exit(1)
+else:
+	session_key = msg_key[:16]
+	print("Session key retrieved")
+	status, svr_msg = netif.receive_msg(blocking=False)
+
+#Todo: Protocol Part 3 -- Main Body
+'''
+----------------------------
+------ PROTOCOL PT 3 -------
+----------------------------
+'''
 
 try:
 	opts, args = getopt.getopt(sys.argv[1:], shortopts='hp:a:', longopts=['help', 'path=', 'addr='])
