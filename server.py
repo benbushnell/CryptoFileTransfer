@@ -18,7 +18,8 @@ from netinterface import network_interface
 NET_PATH = './'
 OWN_ADDR = 'S'
 CLIENT = 'A'
-user_public_key = None
+user_auth_public_key = None
+user_enc_public_key = None
 
 # ------------       
 # main program
@@ -31,7 +32,8 @@ status, msg = netif.receive_msg(blocking=True)  # when returns, status is True a
 if status:
     header = msg[:msg.find('|'.encode())]
 if header.decode() == 'SERVER_AUTH':
-    server_privatekey = RSA.import_key(open('server_keys/server_privatekey.pem').read())
+    server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read())
+    server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read())
     msg = msg[msg.find('|'.encode())+1:]
     # decrypt symmetric key
     # decrypt user's public key and nonce
@@ -39,18 +41,20 @@ if header.decode() == 'SERVER_AUTH':
     nonce_len = 32
     user_public_key_len = 450
 
-    key_and_nonce = functions.rsa_hybrid_decrypt(msg, server_privatekey)
+    keys_and_nonce = functions.rsa_hybrid_decrypt(msg, server_enc_privatekey)
 
-    user_public_key = RSA.import_key(key_and_nonce[:user_public_key_len])
-    nonce = key_and_nonce[user_public_key_len:]
+    user_auth_public_key = RSA.import_key(keys_and_nonce[:user_public_key_len])
+    user_enc_public_key = RSA.import_key(keys_and_nonce[user_public_key_len:user_public_key_len * 2])
+    nonce = keys_and_nonce[user_public_key_len * 2:]
     # generate a timestamp
     t = str(time.time()).encode()
     # encrypt with aes key
     nonce_and_timestamp_msg = nonce + t
     # Create new IV and append to encrypted nonce and timestamp
-    to_client_msg = functions.rsa_hybrid_encrypt(nonce_and_timestamp_msg, user_public_key)
+    to_client_msg = functions.rsa_hybrid_encrypt(nonce_and_timestamp_msg, user_enc_public_key)
     netif.send_msg(CLIENT, to_client_msg)
     serverauthcode = 1
+    # TODO: figure out why this fixes an error where the first instance of receive_msg is not blocking
     status, msg = netif.receive_msg(blocking=False)
 
 status, msg = netif.receive_msg(blocking=True)
@@ -58,10 +62,11 @@ if serverauthcode == 1:
     if status:
         header = msg[:msg.find('|'.encode())]
         if header.decode() == 'USER_AUTH':
-            server_privatekey = RSA.import_key(open('server_keys/server_privatekey.pem').read())
+            server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read())
+            server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read())
             msg = msg[msg.find('|'.encode()) + 1:]
             #Decrypt message
-            msg = functions.rsa_hybrid_decrypt(msg, server_privatekey)
+            msg = functions.rsa_hybrid_decrypt(msg, server_enc_privatekey)
             first_delim = msg.find("|".encode())
             pwmsg_len = msg[:first_delim]
             pwmsg_len = int(pwmsg_len.decode())
@@ -69,7 +74,7 @@ if serverauthcode == 1:
             sighashpwmsg = msg[pwmsg_len:]
             pwmsg= msg[:pwmsg_len]
             server_hash = SHA256.new(pwmsg)
-            verifier = pss.new(user_public_key)
+            verifier = pss.new(user_auth_public_key)
             try:
                 verifier.verify(server_hash, sighashpwmsg)
                 print("The signature is authentic")
@@ -97,11 +102,11 @@ if serverauthcode == 1:
                                 # hash message
                                 hash_msg_symm = SHA256.new(msg_symm)
                                 # sign the hash
-                                sig_hash_msg_symm = pss.new(server_privatekey).sign(hash_msg_symm)
+                                sig_hash_msg_symm = pss.new(server_auth_privatekey).sign(hash_msg_symm)
                                 # concat signed hash to message
                                 final_msg = msg_symm + "|".encode() + sig_hash_msg_symm
                                 #encrypt message
-                                enc_full_msg = functions.rsa_hybrid_encrypt(final_msg, user_public_key)
+                                enc_full_msg = functions.rsa_hybrid_encrypt(final_msg, user_enc_public_key)
 
                                 netif.send_msg(CLIENT, enc_full_msg)
                             else:

@@ -22,18 +22,22 @@ SERVER = 'S'
 
 netif = network_interface(NET_PATH, OWN_ADDR)
 
-keys = RSA.generate(2048)
+user_auth_keys = RSA.generate(2048)
+user_enc_keys = RSA.generate(2048)
 
 # ----------------------------
 # ------ PROTOCOL PT 1 -------
 # ----------------------------
 # getting server publickey
-server_publickey = RSA.import_key(open('server_keys/server_publickey.pem').read())
+server_auth_publickey = RSA.import_key(open('server_keys/server_auth_publickey.pem').read())
+server_enc_publickey = RSA.import_key(open('server_keys/server_enc_publickey.pem').read())
 
-user_publickey = keys.publickey().export_key()
-# Private key is user_privatekey
-# not stored for now
-user_privatekey = keys.export_key()
+user_auth_publickey = user_auth_keys.publickey().export_key()
+user_auth_privatekey = user_auth_keys.export_key()
+
+user_enc_publickey = user_enc_keys.publickey().export_key()
+user_enc_privatekey = user_enc_keys.export_key()
+
 # 256 bit random nonce
 nonce = Random.get_random_bytes(32)
 
@@ -41,8 +45,8 @@ nonce = Random.get_random_bytes(32)
 t = time.time()
 
 # create message to be encrypted
-msg = user_publickey + nonce
-enc_msg = functions.rsa_hybrid_encrypt(msg, server_publickey)
+msg = user_auth_publickey + user_enc_publickey + nonce
+enc_msg = functions.rsa_hybrid_encrypt(msg, server_enc_publickey)
 
 msg_header = 'SERVER_AUTH'.encode() + '|'.encode()
 
@@ -53,7 +57,7 @@ netif.send_msg(SERVER, full_msg)
 # wait for response
 status, svr_msg = netif.receive_msg(blocking=True)
 
-msg_received = functions.rsa_hybrid_decrypt(svr_msg, keys)
+msg_received = functions.rsa_hybrid_decrypt(svr_msg, user_enc_keys)
 
 if nonce != msg_received[:32]:
     print("Invalid nonce returned by server. Terminating connection attempt.")
@@ -77,11 +81,11 @@ msglen = str(len(pwmsg))
 # RSA PSS protocol for signature
 hashpwdmsg = SHA256.new(pwmsg.encode())
 print(type(hashpwdmsg))
-sigpwdmsg = pss.new(keys).sign(hashpwdmsg)
+sigpwdmsg = pss.new(user_auth_keys).sign(hashpwdmsg)
 
 # Building the message
 msg_header = 'USER_AUTH'.encode() + '|'.encode()
-enc_msg = functions.rsa_hybrid_encrypt((msglen + "|" + pwmsg).encode() + sigpwdmsg, server_publickey)
+enc_msg = functions.rsa_hybrid_encrypt((msglen + "|" + pwmsg).encode() + sigpwdmsg, server_enc_publickey)
 
 full_msg = msg_header + enc_msg
 
@@ -92,7 +96,7 @@ netif.send_msg(SERVER, full_msg)
 status, svr_msg = netif.receive_msg(blocking=True)
 
 # grabbing AES key to decrypt message body
-msg_received = functions.rsa_hybrid_decrypt(svr_msg, keys)
+msg_received = functions.rsa_hybrid_decrypt(svr_msg, user_enc_keys)
 
 # chop off the key so that we don't find an early delimiter
 find_delim = msg_received[16:]
@@ -101,7 +105,7 @@ sig_start = find_delim.find("|".encode()) + 17
 msg_sig = msg_received[sig_start:]
 msg_key = msg_received[:sig_start - 1]
 user_hash = SHA256.new(msg_key)
-verifier = pss.new(server_publickey)
+verifier = pss.new(server_auth_publickey)
 try:
     verifier.verify(user_hash, msg_sig)
     print("The signature is authentic")
