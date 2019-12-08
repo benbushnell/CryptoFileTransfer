@@ -38,6 +38,9 @@ def is_timestamp_valid(current_time, other_time):
         return False
     return True
 
+#TODO: server reset that is called every time the session is invalidated that resets current user id,
+# and any other parameters that are temporarily set like whether the server validation step has occurred etc.
+#
 # verify_signature msg assumes length of message in the
 # beginning separated from the rest of the message with a delimiter |
 

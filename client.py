@@ -24,6 +24,7 @@ netif = network_interface(NET_PATH, OWN_ADDR)
 
 user_auth_keys = RSA.generate(2048)
 user_enc_keys = RSA.generate(2048)
+session_key = None
 
 # ----------------------------
 # ------ PROTOCOL PT 1 -------
@@ -120,6 +121,26 @@ else:
 ------ PROTOCOL PT 3 -------
 ----------------------------
 '''
+
+cipher = AES.new(session_key, AES.MODE_GCM)
+
+def non_file_op(operation, argument):
+    if argument is None:
+        ciphertext, mac_tag = cipher.encrypt_and_digest((str(time.time()) +  "|" + operation).encode())
+        msg_3 = "NON_FILE_OP_NO_ARG|".encode() + cipher.nonce + ciphertext + mac_tag
+        netif.send_msg(SERVER, msg_3)
+    else:
+        ciphertext, mac_tag = cipher.encrypt_and_digest((str(time.time()) + "|" + operation + argument).encode())
+        msg_3 = "NON_FILE_OP_ARG|".encode() + cipher.nonce + ciphertext + mac_tag
+        netif.send_msg(SERVER, msg_3)
+
+
+def upload(filepath):
+    f = open(filepath, "rb")
+    ciphertext, mac_tag = cipher.encrypt_and_digest((str(time.time()) + "|").encode() + f.read())
+    msg_3 = "UPLOAD|".encode() + cipher.nonce + ciphertext + mac_tag
+    netif.send_msg(SERVER, msg_3)
+
 
 try:
     opts, args = getopt.getopt(sys.argv[1:], shortopts='hp:a:', longopts=['help', 'path=', 'addr='])
