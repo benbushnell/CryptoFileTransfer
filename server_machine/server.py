@@ -106,7 +106,6 @@ while True:
                     pwd_hash = SHA256.new(pwmsg_parts[1])
                     if not functions.is_timestamp_valid(time.time(), float(ts)):
                         print("Timestamp error")
-                        # TODO: Send user error message
                         error_msg = functions.error_msg("Timestamp error",user_enc_public_key, server_auth_privatekey)
 
                         netif.send_msg(CLIENT, error_msg)
@@ -150,7 +149,6 @@ while True:
 
                             else:
                                 print("incorrect username")
-                                # TODO send error message to client
 
                                 error_msg = functions.error_msg("Incorrect Login", server_auth_privatekey, user_enc_public_key)
 
@@ -160,7 +158,6 @@ while True:
                                 continue
                 else:
                     print("The signature is not authentic!")
-                    # TODO send error message to client
                     error_msg = functions.error_msg("Incorrect Login", server_auth_privatekey, user_enc_public_key)
 
                     netif.send_msg(CLIENT, error_msg)
@@ -169,8 +166,11 @@ while True:
                     continue
         else:
             print("Server must be authenticated first. Please restart protocol.")
+            error_msg = functions.error_msg("Server must be authenticated first. Please restart protocol.", server_auth_privatekey, user_enc_public_key)
 
-            exit(1)
+            netif.send_msg(CLIENT, error_msg)
+            status, msg = netif.receive_msg(blocking=False)
+            serverauth = False
 
     # ----------------------------
     # ------ PROTOCOL PT 3 -------

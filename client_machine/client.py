@@ -34,8 +34,8 @@ session_key = None
 # ------ PROTOCOL PT 1 -------
 # ----------------------------
 # getting server publickey
-server_auth_publickey = RSA.import_key(open('../server_keys/server_auth_publickey.pem').read())
-server_enc_publickey = RSA.import_key(open('../server_keys/server_enc_publickey.pem').read())
+server_auth_publickey = RSA.import_key(open('server_keys/server_auth_publickey.pem').read())
+server_enc_publickey = RSA.import_key(open('server_keys/server_enc_publickey.pem').read())
 
 user_auth_publickey = user_auth_keys.publickey().export_key()
 user_auth_privatekey = user_auth_keys.export_key()
