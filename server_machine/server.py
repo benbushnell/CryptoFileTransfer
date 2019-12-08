@@ -142,10 +142,6 @@ status, msg = netif.receive_msg(blocking=False)
 # ------ PROTOCOL PT 3 -------
 # ----------------------------
 
-def move_to_user_dir(uid):
-    print("DO THIS")
-
-
 def change_dir(f):
     try:
         os.chdir(os.path.join(os.getcwd(), f))
@@ -153,8 +149,14 @@ def change_dir(f):
     except Exception as e:
         print(e)
 
+#Moving to the folder of the user who just logged in.
+path = user_path_dic[uid]
+change_dir(path)
+
 def non_file_op(operation, argument):
-    print("non file op")
+    print("ben is working on this")
+    #if argument is None:
+
 
 
 try:
@@ -234,6 +236,12 @@ while True:
             delim_pos = plaintext.find("|".encode())
             ts = float(plaintext[:delim_pos].decode())
             file = plaintext[delim_pos + 1:]
+            if functions.is_timestamp_valid(time.time(), ts):
+                print("do this")
+                #Todo: put the file into the directory
+            else:
+                print("Timestamp Error")
+                #TODO: Timestamp Error
 
 
 
