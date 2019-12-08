@@ -115,7 +115,6 @@ else:
     print("Logged in, session key retrieved")
     status, svr_msg = netif.receive_msg(blocking=False)
 
-# Todo: Protocol Part 3 -- Main Body
 '''
 ----------------------------
 ------ PROTOCOL PT 3 -------
@@ -124,9 +123,11 @@ else:
 
 cipher = AES.new(session_key, AES.MODE_GCM)
 
+
 def non_file_op(operation, argument):
+    print('Performing operation...')
     if argument is None:
-        ciphertext, mac_tag = cipher.encrypt_and_digest((str(time.time()) +  "|" + operation).encode())
+        ciphertext, mac_tag = cipher.encrypt_and_digest((str(time.time()) + operation).encode())
         msg_3 = "NON_FILE_OP_NO_ARG|".encode() + cipher.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
     else:
@@ -136,46 +137,42 @@ def non_file_op(operation, argument):
 
 
 def upload(filepath):
-    f = open(filepath, "rb")
+    print('Performing upload...')
+    try:
+        f = open(filepath, "rb")
+    except FileNotFoundError:
+        print('Could not find file. Please try again.')
+        return
     ciphertext, mac_tag = cipher.encrypt_and_digest((str(time.time()) + "|").encode() + f.read())
     msg_3 = "UPLOAD|".encode() + cipher.nonce + ciphertext + mac_tag
     netif.send_msg(SERVER, msg_3)
 
 
-try:
-    opts, args = getopt.getopt(sys.argv[1:], shortopts='hp:a:', longopts=['help', 'path=', 'addr='])
-except getopt.GetoptError:
-    print('Usage: python sender.py -p <network path> -a <own addr>')
-    sys.exit(1)
+def opt_req_arg(opt):
+    return opt.upper() in {'MKD', 'RMD', 'CWD', 'DNL', 'RMF'}
 
-for opt, arg in opts:
-    if opt == '-h' or opt == '--help':
-        print('Usage: python sender.py -p <network path> -a <own addr>')
-        sys.exit(0)
-    elif opt == '-p' or opt == '--path':
-        NET_PATH = arg
-    elif opt == '-a' or opt == '--addr':
-        OWN_ADDR = arg
-
-if (NET_PATH[-1] != '/') and (NET_PATH[-1] != '\\'): NET_PATH += '/'
-
-if not os.access(NET_PATH, os.F_OK):
-    print('Error: Cannot access path ' + NET_PATH)
-    sys.exit(1)
-
-if len(OWN_ADDR) > 1: OWN_ADDR = OWN_ADDR[0]
-
-if OWN_ADDR not in network_interface.addr_space:
-    print('Error: Invalid address ' + OWN_ADDR)
-    sys.exit(1)
 
 # main loop
 netif = network_interface(NET_PATH, OWN_ADDR)
 print('Main loop started...')
 while True:
-    msg = input('Type a message: ')
-    dst = input('Type a destination address: ')
+    msg = input('Type a command: ')
+    split = msg.split(' ')
+    if len(split) == 2:
+        opt = split[0]
+        arg = split[1]
+        if opt.upper() == 'UPL':
+            upload(arg)
+        elif opt_req_arg(opt):
+            non_file_op(opt, arg)
+        else:
+            print('Too many arguments for this command, please try again.')
+    elif len(split) > 2:
+        print('Incorrect format, cannot complete operation.')
+    else:
+        if not opt_req_arg(split[0]):
+            non_file_op(split[0], None)
+        else:
+            print('Too few arguments for this command, please try again.')
 
-    netif.send_msg(dst, msg.encode('utf-8'))
-
-    if input('Continue? (y/n): ') == 'n': break
+    if input('Perform another operation? (y/n): ') == 'n': break
