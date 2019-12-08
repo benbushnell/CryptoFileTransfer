@@ -19,8 +19,7 @@ def rsa_hybrid_encrypt(msg, publickey):
 
 
 # the enc_msg of the function assumes that the IV and ONLY the IV is before the encrypted sections
-def rsa_hybrid_decypt(enc_msg, privatekey):
-
+def rsa_hybrid_decrypt(enc_msg, privatekey):
     enc_aes_key = enc_msg[-256:]
     iv = enc_msg[:16]
     enc_msg_body = enc_msg[16:-256]
@@ -32,3 +31,8 @@ def rsa_hybrid_decypt(enc_msg, privatekey):
     decrypt_msg = Padding.unpad(decrypt_msg, AES.block_size)
     return decrypt_msg
 
+
+def is_timestamp_valid(current_time, other_time):
+    if current_time - other_time > 120:
+        return False
+    return True

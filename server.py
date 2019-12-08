@@ -25,10 +25,6 @@ user_public_key = None
 # ------------
 netif = network_interface(NET_PATH, OWN_ADDR)
 serverauthcode = 0
-# Calling receive_msg() in non-blocking mode ...
-#	status, msg = netif.receive_msg(blocking=False)
-#	if status: print(msg)      # if status is True, then a message was returned in msg
-#	else: time.sleep(2)        # otherwise msg is empty
 
 # Calling receive_msg() in blocking mode ...
 status, msg = netif.receive_msg(blocking=True)  # when returns, status is True and msg contains a message
@@ -43,7 +39,7 @@ if header.decode() == 'SERVER_AUTH':
     nonce_len = 32
     user_public_key_len = 450
 
-    key_and_nonce = functions.rsa_hybrid_decypt(msg, server_privatekey)
+    key_and_nonce = functions.rsa_hybrid_decrypt(msg, server_privatekey)
 
     user_public_key = RSA.import_key(key_and_nonce[:user_public_key_len])
     nonce = key_and_nonce[user_public_key_len:]
@@ -63,15 +59,9 @@ if serverauthcode == 1:
         header = msg[:msg.find('|'.encode())]
         if header.decode() == 'USER_AUTH':
             server_privatekey = RSA.import_key(open('server_keys/server_privatekey.pem').read())
-            # decrypt symmetric key
             msg = msg[msg.find('|'.encode()) + 1:]
-
-            # decrypt user's public key and nonce
-
-            #Set up AES
-
-            #Extract meat of message
-            msg = functions.rsa_hybrid_decypt(msg, server_privatekey)
+            #Decrypt message
+            msg = functions.rsa_hybrid_decrypt(msg, server_privatekey)
             first_delim = msg.find("|".encode())
             pwmsg_len = msg[:first_delim]
             pwmsg_len = int(pwmsg_len.decode())
@@ -87,13 +77,10 @@ if serverauthcode == 1:
                 uid = pwmsg_parts[0]
                 ts = pwmsg_parts[2]
                 pwd_hash = SHA256.new(pwmsg_parts[1])
-                if time.time() - float(ts) > 120:
+                if not functions.is_timestamp_valid(time.time(), float(ts)):
                     print("Timestamp error")
-                    ##
-                    ##
-                    #Todo: Send user error message
-                    ##
-                    ##
+                    exit(1)
+                    # TODO: Send user error message
                 else:
                     with open('info.json') as json_file:
                         data = json.load(json_file)
@@ -101,8 +88,6 @@ if serverauthcode == 1:
                         if pwmsg_parts[0].decode() in data:
                             # check password
                             if pwd_hash.hexdigest() == data[uid.decode()].lower():
-                                # TODO: Remove this line, we're not logged in yet
-                                print("logged in")
                                 # Generate symmetric key (K_us) with scrypt
                                 salt = get_random_bytes(16)
                                 key = scrypt(pwmsg_parts[1].decode(), salt, 16, N=2**14, r=8, p=1)
@@ -111,16 +96,14 @@ if serverauthcode == 1:
                                 msg_symm = key + t
                                 # hash message
                                 hash_msg_symm = SHA256.new(msg_symm)
+                                # sign the hash
                                 sig_hash_msg_symm = pss.new(server_privatekey).sign(hash_msg_symm)
+                                # concat signed hash to message
                                 final_msg = msg_symm + "|".encode() + sig_hash_msg_symm
-
-
-                                #hybrid again
+                                #encrypt message
                                 enc_full_msg = functions.rsa_hybrid_encrypt(final_msg, user_public_key)
 
                                 netif.send_msg(CLIENT, enc_full_msg)
-
-
                             else:
                                 print("incorrect password")
                                 exit(1)
@@ -131,16 +114,9 @@ if serverauthcode == 1:
                 print(e)
                 print("The signature is not authentic!")
                 exit(1)
-
-
-            # Create new IV and append to encrypted nonce and timestamp
-            ''' new_iv = Random.get_random_bytes(AES.block_size)
-            new_aes_cipher = AES.new(aes_key, AES.MODE_CBC, new_iv)
-            padded_full_msg = Padding.pad(nonce_and_timestamp_msg, AES.block_size, style='pkcs7')
-            to_client_msg = new_iv + new_aes_cipher.encrypt(padded_full_msg)
-            netif.send_msg(CLIENT, to_client_msg)'''
     else:
         print("Server must be authenticated first. Please restart protocol.")
+        exit(1)
 
 try:
     opts, args = getopt.getopt(sys.argv[1:], shortopts='hp:a:', longopts=['help', 'path=', 'addr='])
