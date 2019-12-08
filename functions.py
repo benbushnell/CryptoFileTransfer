@@ -2,6 +2,7 @@ from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto import Random
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pss
+from Crypto.Hash import SHA256
 from Crypto.Util import Padding
 
 
@@ -36,3 +37,25 @@ def is_timestamp_valid(current_time, other_time):
     if current_time - other_time > 120:
         return False
     return True
+
+# verify_signature msg assumes length of message in the
+# beginning separated from the rest of the message with a delimiter |
+
+def verify_signature(msg, publickey):
+    first_delim = msg.find("|".encode())
+    msg_len = msg[:first_delim]
+    msg_len = int(msg_len.decode())
+    # removed length from msg
+    msg = msg[first_delim + 1:]
+    sighashmsg = msg[msg_len:]
+    msg = msg[:msg_len]
+    gen_hash = SHA256.new(msg)
+    verifier = pss.new(publickey)
+    try:
+        verifier.verify(gen_hash, sighashmsg)
+        return True, msg
+    except(ValueError, TypeError) as e:
+        print(e)
+        return False, ""
+
+

@@ -64,19 +64,14 @@ if serverauthcode == 1:
         if header.decode() == 'USER_AUTH':
             server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read())
             server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read())
+            # Remove header
             msg = msg[msg.find('|'.encode()) + 1:]
-            #Decrypt message
+            # Decrypt message
             msg = functions.rsa_hybrid_decrypt(msg, server_enc_privatekey)
-            first_delim = msg.find("|".encode())
-            pwmsg_len = msg[:first_delim]
-            pwmsg_len = int(pwmsg_len.decode())
-            msg = msg[first_delim + 1:]
-            sighashpwmsg = msg[pwmsg_len:]
-            pwmsg= msg[:pwmsg_len]
-            server_hash = SHA256.new(pwmsg)
-            verifier = pss.new(user_auth_public_key)
-            try:
-                verifier.verify(server_hash, sighashpwmsg)
+            # Verify Signature
+            sig_verified, pwmsg = functions.verify_signature(msg, user_auth_public_key)
+
+            if sig_verified:
                 print("The signature is authentic")
                 pwmsg_parts = pwmsg.split("|".encode())
                 uid = pwmsg_parts[0]
@@ -104,7 +99,8 @@ if serverauthcode == 1:
                                 # sign the hash
                                 sig_hash_msg_symm = pss.new(server_auth_privatekey).sign(hash_msg_symm)
                                 # concat signed hash to message
-                                final_msg = msg_symm + "|".encode() + sig_hash_msg_symm
+                                final_msg = (str(len(msg_symm)) + "|").encode() + msg_symm + sig_hash_msg_symm
+
                                 #encrypt message
                                 enc_full_msg = functions.rsa_hybrid_encrypt(final_msg, user_enc_public_key)
 
@@ -115,8 +111,7 @@ if serverauthcode == 1:
                         else:
                             print("incorrect username")
                             exit(1)
-            except (ValueError, TypeError) as e:
-                print(e)
+            else:
                 print("The signature is not authentic!")
                 exit(1)
     else:

@@ -95,22 +95,15 @@ netif.send_msg(SERVER, full_msg)
 # Listening for response
 status, svr_msg = netif.receive_msg(blocking=True)
 
-# grabbing AES key to decrypt message body
+# Decrypt message body
 msg_received = functions.rsa_hybrid_decrypt(svr_msg, user_enc_keys)
 
 # chop off the key so that we don't find an early delimiter
-find_delim = msg_received[16:]
-# the index of where the signature actually starts b/c we know key length is 16
-sig_start = find_delim.find("|".encode()) + 17
-msg_sig = msg_received[sig_start:]
-msg_key = msg_received[:sig_start - 1]
-user_hash = SHA256.new(msg_key)
-verifier = pss.new(server_auth_publickey)
-try:
-    verifier.verify(user_hash, msg_sig)
+sig_verified, msg_key = functions.verify_signature(msg_received, server_auth_publickey)
+
+if sig_verified:
     print("The signature is authentic")
-except (ValueError, TypeError) as e:
-    print(e)
+else:
     print("The signature is not authentic!")
     exit(1)
 if not functions.is_timestamp_valid(time.time(), float(msg_key[16:])):
