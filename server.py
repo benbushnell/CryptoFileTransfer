@@ -12,6 +12,7 @@ from Crypto.Util import Padding
 from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
 
+import functions
 from netinterface import network_interface
 
 NET_PATH = './'
@@ -35,19 +36,15 @@ if status:
     header = msg[:msg.find('|'.encode())]
 if header.decode() == 'SERVER_AUTH':
     server_privatekey = RSA.import_key(open('server_keys/server_privatekey.pem').read())
+    msg = msg[msg.find('|'.encode())+1:]
     # decrypt symmetric key
-    aes_key_enc = msg[-256:]
-    pkcs_cipher = PKCS1_OAEP.new(server_privatekey)
-    aes_key = pkcs_cipher.decrypt(aes_key_enc)
     # decrypt user's public key and nonce
-    beginning_of_iv = msg.find('|'.encode()) + 1
-    end_of_iv = msg.find('|'.encode())+1+AES.block_size
-    iv = msg[beginning_of_iv:end_of_iv]
-    aes_cipher = AES.new(aes_key, AES.MODE_CBC, iv)
+
     nonce_len = 32
     user_public_key_len = 450
-    key_and_nonce = aes_cipher.decrypt(msg[end_of_iv:end_of_iv+user_public_key_len+nonce_len+14])
-    key_and_nonce = Padding.unpad(key_and_nonce, AES.block_size)
+
+    key_and_nonce = functions.rsa_hybrid_decypt(msg, server_privatekey)
+
     user_public_key = RSA.import_key(key_and_nonce[:user_public_key_len])
     nonce = key_and_nonce[user_public_key_len:]
     # generate a timestamp
@@ -55,12 +52,11 @@ if header.decode() == 'SERVER_AUTH':
     # encrypt with aes key
     nonce_and_timestamp_msg = nonce + t
     # Create new IV and append to encrypted nonce and timestamp
-    new_iv = Random.get_random_bytes(AES.block_size)
-    new_aes_cipher = AES.new(aes_key, AES.MODE_CBC, new_iv)
-    padded_full_msg = Padding.pad(nonce_and_timestamp_msg, AES.block_size, style='pkcs7')
-    to_client_msg = new_iv + new_aes_cipher.encrypt(padded_full_msg)
+    to_client_msg = functions.rsa_hybrid_encrypt(nonce_and_timestamp_msg, user_public_key)
     netif.send_msg(CLIENT, to_client_msg)
     serverauthcode = 1
+    status, msg = netif.receive_msg(blocking=False)
+
 status, msg = netif.receive_msg(blocking=True)
 if serverauthcode == 1:
     if status:
@@ -68,18 +64,14 @@ if serverauthcode == 1:
         if header.decode() == 'USER_AUTH':
             server_privatekey = RSA.import_key(open('server_keys/server_privatekey.pem').read())
             # decrypt symmetric key
-            aes_key_enc = msg[-256:]
-            pkcs_cipher = PKCS1_OAEP.new(server_privatekey)
-            aes_key = pkcs_cipher.decrypt(aes_key_enc)
+            msg = msg[msg.find('|'.encode()) + 1:]
+
             # decrypt user's public key and nonce
-            beginning_of_iv = msg.find('|'.encode()) + 1
-            end_of_iv = msg.find('|'.encode()) + 1 + AES.block_size
-            iv = msg[beginning_of_iv:end_of_iv]
+
             #Set up AES
-            aes_cipher = AES.new(aes_key, AES.MODE_CBC, iv)
+
             #Extract meat of message
-            msg = aes_cipher.decrypt(msg[end_of_iv:-256])
-            msg = Padding.unpad(msg, AES.block_size)
+            msg = functions.rsa_hybrid_decypt(msg, server_privatekey)
             first_delim = msg.find("|".encode())
             pwmsg_len = msg[:first_delim]
             pwmsg_len = int(pwmsg_len.decode())
@@ -121,18 +113,12 @@ if serverauthcode == 1:
                                 hash_msg_symm = SHA256.new(msg_symm)
                                 sig_hash_msg_symm = pss.new(server_privatekey).sign(hash_msg_symm)
                                 final_msg = msg_symm + "|".encode() + sig_hash_msg_symm
-                                pkcs_cipher = PKCS1_OAEP.new(user_public_key)
+
 
                                 #hybrid again
-                                rand_key = Random.get_random_bytes(32)
-                                new_iv = Random.get_random_bytes(AES.block_size)
-                                new_aes_cipher = AES.new(rand_key, AES.MODE_CBC, new_iv)
-                                padded_final_msg = Padding.pad(final_msg, AES.block_size, style='pkcs7')
-                                to_client_msg = new_iv + new_aes_cipher.encrypt(padded_final_msg)
+                                enc_full_msg = functions.rsa_hybrid_encrypt(final_msg, user_public_key)
 
-                                enc_rand_key = pkcs_cipher.encrypt(rand_key)
-                                full_msg = to_client_msg + enc_rand_key
-                                netif.send_msg(CLIENT, full_msg)
+                                netif.send_msg(CLIENT, enc_full_msg)
 
 
                             else:

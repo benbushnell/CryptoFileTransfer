@@ -10,6 +10,7 @@ from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto import Random
 from Crypto.Util import Padding
 from netinterface import network_interface
+import functions
 from getpass import getpass
 
 NET_PATH = './'
@@ -29,11 +30,11 @@ keys = RSA.generate(2048)
 # getting server publickey
 server_publickey = RSA.import_key(open('server_keys/server_publickey.pem').read())
 
-p = keys.publickey().export_key()
+user_publickey = keys.publickey().export_key()
 #print(len(p))
 # Private key is d
 # not stored for now
-d = keys.export_key()
+user_privatekey = keys.export_key()
 # 256 bit random nonce
 nonce = Random.get_random_bytes(32)
 
@@ -41,27 +42,20 @@ nonce = Random.get_random_bytes(32)
 t = time.time()
 
 # create message to be encrypted
-msg = p + nonce
-RSAcipher = PKCS1_OAEP.new(server_publickey)
+msg = user_publickey + nonce
+enc_msg = functions.rsa_hybrid_encrypt(msg, server_publickey)
 
-symkey = Random.get_random_bytes(32)  # we need a 256-bit (32-byte) AES key
-iv = Random.get_random_bytes(AES.block_size)
-AEScipher = AES.new(symkey, AES.MODE_CBC, iv)
+msg_header = 'SERVER_AUTH'.encode() + '|'.encode()
 
-msg_header = 'SERVER_AUTH'.encode() + '|'.encode() + iv
-padded_full_msg = Padding.pad(msg, AES.block_size, style='pkcs7')
-enc_msg = AEScipher.encrypt(padded_full_msg)
-enc_symkey = RSAcipher.encrypt(symkey)
-
-full_msg = msg_header + enc_msg + enc_symkey
+full_msg = msg_header + enc_msg
 
 netif.send_msg(SERVER, full_msg)
 
 # wait for response
 status, svr_msg = netif.receive_msg(blocking=True)
-new_aes_cipher = AES.new(symkey, AES.MODE_CBC, svr_msg[:AES.block_size])
-msg_received = new_aes_cipher.decrypt(svr_msg[AES.block_size:])
-msg_received = Padding.unpad(msg_received, AES.block_size)
+
+msg_received = functions.rsa_hybrid_decypt(svr_msg, keys)
+
 if nonce != msg_received[:32]:
 	print("Invalid nonce returned by server. Terminating connection attempt.")
 	exit(1)
@@ -86,18 +80,12 @@ hashpwdmsg = SHA256.new(pwmsg.encode())
 print(type(hashpwdmsg))
 sigpwdmsg = pss.new(keys).sign(hashpwdmsg)
 
-#RSA-AES Hybrid encryption setup
-symkey = Random.get_random_bytes(32)
-iv = Random.get_random_bytes(AES.block_size)
-AEScipher = AES.new(symkey, AES.MODE_CBC, iv)
-
 #Building the message
-msg_header = 'USER_AUTH'.encode() + '|'.encode() + iv
-padded_full_msg = Padding.pad((msglen + "|" + pwmsg).encode() + sigpwdmsg, AES.block_size, style='pkcs7')
-enc_msg = AEScipher.encrypt(padded_full_msg)
-enc_symkey = RSAcipher.encrypt(symkey)
+msg_header = 'USER_AUTH'.encode() + '|'.encode()
+enc_msg = functions.rsa_hybrid_encrypt((msglen + "|" + pwmsg).encode() + sigpwdmsg, server_publickey)
 
-full_msg = msg_header + enc_msg + enc_symkey
+full_msg = msg_header + enc_msg
+
 #Sending the message
 netif.send_msg(SERVER, full_msg)
 
@@ -105,16 +93,8 @@ netif.send_msg(SERVER, full_msg)
 status, svr_msg = netif.receive_msg(blocking=True)
 
 #grabbing AES key to decrypt message body
-aes_key_enc = svr_msg[-256:]
-#uses private key
-pkcs_cipher = PKCS1_OAEP.new(keys)
-aes_key = pkcs_cipher.decrypt(aes_key_enc)
-#grabbing only AES-encrypted message body
-msg_no_key = svr_msg[:-256]
-new_aes_cipher = AES.new(aes_key, AES.MODE_CBC, msg_no_key[:AES.block_size])
-msg_received = new_aes_cipher.decrypt(msg_no_key[AES.block_size:])
-#decrypted message body
-msg_received = Padding.unpad(msg_received, AES.block_size)
+msg_received = functions.rsa_hybrid_decypt(svr_msg, keys)
+
 #chop off the key so that we don't find an early delimiter
 find_delim = msg_received[16:]
 #the index of where the signature actually starts b/c we know key length is 16
