@@ -25,7 +25,12 @@ user_enc_public_key = None
 # main program
 # ------------
 netif = network_interface(NET_PATH, OWN_ADDR)
-serverauthcode = 0
+serverauth = False
+
+
+# ----------------------------
+# ------ PROTOCOL PT 1 -------
+# ----------------------------
 
 # Calling receive_msg() in blocking mode ...
 status, msg = netif.receive_msg(blocking=True)  # when returns, status is True and msg contains a message
@@ -53,12 +58,16 @@ if header.decode() == 'SERVER_AUTH':
     # Create new IV and append to encrypted nonce and timestamp
     to_client_msg = functions.rsa_hybrid_encrypt(nonce_and_timestamp_msg, user_enc_public_key)
     netif.send_msg(CLIENT, to_client_msg)
-    serverauthcode = 1
+    serverauth = True
     # TODO: figure out why this fixes an error where the first instance of receive_msg is not blocking
     status, msg = netif.receive_msg(blocking=False)
 
+# ----------------------------
+# ------ PROTOCOL PT 2 -------
+# ----------------------------
+
 status, msg = netif.receive_msg(blocking=True)
-if serverauthcode == 1:
+if serverauth:
     if status:
         header = msg[:msg.find('|'.encode())]
         if header.decode() == 'USER_AUTH':
@@ -117,6 +126,12 @@ if serverauthcode == 1:
     else:
         print("Server must be authenticated first. Please restart protocol.")
         exit(1)
+
+# ----------------------------
+# ------ PROTOCOL PT 3 -------
+# ----------------------------
+
+
 
 try:
     opts, args = getopt.getopt(sys.argv[1:], shortopts='hp:a:', longopts=['help', 'path=', 'addr='])
