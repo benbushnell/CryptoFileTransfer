@@ -13,6 +13,11 @@ from Crypto.Util import Padding
 from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
 
+import os,sys,inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0, parentdir)
+
 import functions
 from netinterface import network_interface
 

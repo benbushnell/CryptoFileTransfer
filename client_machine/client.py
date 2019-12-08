@@ -9,6 +9,10 @@ from Crypto.Hash import SHA256
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto import Random
 from Crypto.Util import Padding
+import os,sys,inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0, parentdir)
 from netinterface import network_interface
 import functions
 from getpass import getpass
@@ -132,10 +136,14 @@ def non_file_op(operation, argument):
         ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + operation).encode())
         msg_3 = "NON_FILE_OP_NO_ARG|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
+        status, msg = netif.receive_msg(blocking=True)
+        print(msg)
     else:
         ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|" + operation + argument).encode())
         msg_3 = "NON_FILE_OP_ARG|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
+        status, msg = netif.receive_msg(blocking=True)
+        print(msg)
 
 
 def upload(filepath):
