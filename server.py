@@ -2,6 +2,7 @@
 # sender.py
 
 import os, sys, getopt, time, json
+from getpass import getpass
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
@@ -20,6 +21,7 @@ OWN_ADDR = 'S'
 CLIENT = 'A'
 user_auth_public_key = None
 user_enc_public_key = None
+passphrase = None
 
 # ------------       
 # main program
@@ -37,8 +39,9 @@ status, msg = netif.receive_msg(blocking=True)  # when returns, status is True a
 if status:
     header = msg[:msg.find('|'.encode())]
 if header.decode() == 'SERVER_AUTH':
-    server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read())
-    server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read())
+    passphrase = getpass('Server key passphrase: ')
+    server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read(), passphrase=passphrase)
+    server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read(), passphrase=passphrase)
     msg = msg[msg.find('|'.encode())+1:]
     # decrypt symmetric key
     # decrypt user's public key and nonce
@@ -71,8 +74,8 @@ if serverauth:
     if status:
         header = msg[:msg.find('|'.encode())]
         if header.decode() == 'USER_AUTH':
-            server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read())
-            server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read())
+            server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read(), passphrase)
+            server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read(), passphrase)
             # Remove header
             msg = msg[msg.find('|'.encode()) + 1:]
             # Decrypt message

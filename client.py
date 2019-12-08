@@ -151,6 +151,8 @@ def upload(filepath):
 def opt_req_arg(opt):
     return opt.upper() in {'MKD', 'RMD', 'CWD', 'DNL', 'RMF'}
 
+# SUCCESS
+# FAILURE
 
 # main loop
 netif = network_interface(NET_PATH, OWN_ADDR)

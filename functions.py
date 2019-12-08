@@ -1,3 +1,5 @@
+import os
+
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto import Random
 from Crypto.PublicKey import RSA
@@ -62,3 +64,5 @@ def verify_signature(msg, publickey):
         return False, ""
 
 
+def get_filename(filepath):
+    return os.path.basename(filepath)
