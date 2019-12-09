@@ -202,13 +202,14 @@ while True:
         try:
             os.chdir(os.path.join(USER_PATH, f))
             cur_dir_msg = "Changed to directory {0}.".format(os.path.basename(os.getcwd()))
-
+            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + cur_dir_msg).encode())
             msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
             print(len(msg_mac))
             netif.send_msg(CLIENT, msg_3)
         except Exception as e:
+            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + str(e)).encode())
             msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
@@ -219,11 +220,13 @@ while True:
         try:
             os.mkdir(os.path.join(USER_PATH, f))
             created_dir_msg = "Directory {0} created on server.".format(f)
+            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + created_dir_msg).encode())
             msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
             netif.send_msg(CLIENT, msg_3)
         except Exception as e:
+            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + str(e)).encode())
             nonce = cipher_protocol_3.nonce
@@ -235,11 +238,13 @@ while True:
         try:
             os.rmdir(os.path.join(USER_PATH, f))
             removed_dir_msg = "Directory {0} successfully removed.".format(f)
+            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + removed_dir_msg).encode())
             msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
             netif.send_msg(CLIENT, msg_3)
         except Exception as e:
+            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + str(e)).encode())
             msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
@@ -262,11 +267,13 @@ while True:
             file = os.path.join(USER_PATH, f)
             os.remove(file)
             removed_file_msg = "File {0} successfully removed.".format(f)
+            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + removed_file_msg).encode())
             msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
             netif.send_msg(CLIENT, msg_3)
         except Exception as e:
+            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + str(e)).encode())
             msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
@@ -275,6 +282,7 @@ while True:
 
     def print_dir_name():
         cur_dir_msg = "Current working directory: {0}".format((os.getcwd()))
+        cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
         msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
             (str(time.time()) + "|" + cur_dir_msg).encode())
         msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
@@ -288,6 +296,7 @@ while True:
                 if entry.name[0] not in ('.', '_'):
                     dir_content_list.append(entry)
         msg_to_send = "|".join(dir_content_list)
+        cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
         msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
             (str(time.time()) + "|" + msg_to_send).encode())
         msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
@@ -295,6 +304,7 @@ while True:
 
 
     def operation_error(error_msg):
+        cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
         msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|" + error_msg).encode())
         msg_3 = "ERROR|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
         netif.send_msg(CLIENT, msg_3)
@@ -419,5 +429,3 @@ while True:
         # dst = input('Type a destination address: ')
         #
         # netif.send_msg(dst, msg.encode('utf-8'))
-
-        if input('Continue? (y/n): ') == 'n': break
