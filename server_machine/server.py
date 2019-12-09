@@ -302,11 +302,12 @@ while True:
 
 
     def print_dir_name():
-        cur_dir_msg = "Current working directory: {0}".format(os.path.basename(os.getcwd()))
+        cur_dir_msg = "Current working directory: {0}".format((os.getcwd()))
         msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
             (str(time.time()) + "|" + cur_dir_msg).encode())
         msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
         netif.send_msg(CLIENT, msg_3)
+        print("sent" + str(time.time()))
 
 
     def print_dir_content():
@@ -405,8 +406,8 @@ while True:
                     operation_error("Invalid Decryption, Operation Unsuccessful")
             if header == "NON_FILE_OP_NO_ARG":
                 # plaintext format: Ts | operation
-                ts = float(plaintext[:plaintext.find("|").decode()])
-                operation = plaintext[plaintext.find("|").decode() + 1:]
+                ts = float(plaintext[:plaintext.find("|".encode())].decode())
+                operation = plaintext[plaintext.find("|".encode())+1:].decode()
                 if functions.is_timestamp_valid(time.time(), ts):
                     non_file_op(operation, None)
                 else:

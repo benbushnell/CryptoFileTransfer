@@ -153,7 +153,7 @@ cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
 def non_file_op(operation, argument):
     print('Performing operation...')
     if argument is None:
-        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + operation).encode())
+        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|" + operation).encode())
         msg_3 = "NON_FILE_OP_NO_ARG|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
     else:
@@ -184,6 +184,38 @@ def upload(filepath):
         print('Could not find file. Please try again.')
         return
 
+def client_listen():
+    print("listening" + str(time.time()))
+    status, svr_msg = netif.receive_msg(blocking=True)
+    print("listen has heard")
+    #read header
+    header = svr_msg[:svr_msg.find('|'.encode())].decode()
+    # remove header
+    svr_msg = svr_msg[svr_msg.find('|'.encode()) + 1:]
+    nonce = svr_msg[:16]
+    mac_tag = svr_msg[-16:]
+    ciphertext = svr_msg[16:-16]
+    cipher = AES.new(session_key, AES.MODE_GCM, nonce)
+    try:
+        plaintext = cipher.decrypt_and_verify(ciphertext, mac_tag)
+    except (ValueError, KeyError):
+        print("Invalid Decryption")
+        # TODO: Should the client abort here?
+        ("Invalid Decryption")
+    ts = plaintext[:plaintext.find('|'.encode())].decode()
+    msg_body = plaintext[plaintext.find('|'.encode()) + 1:].decode()
+    if not functions.is_timestamp_valid(time.time(), float(ts)):
+        print("Error: Terminating Connection.")
+        #TODO: Put client termination func call here, kevin
+    else:
+        print("got and decrypted response")
+        if header == "SUCCESS":
+            print(msg_body)
+        elif header == "FAILURE":
+            print(msg_body)
+        elif header == "DOWNLOAD":
+            #TODO: handle file download once michelle is done with the server send file
+            print("Do this")
 
 def get_user_file_key():
     global user_private_file_key
@@ -251,27 +283,22 @@ while True:
             print('------------------------------------------------------------------------')
         elif (opt == 'GWD') or (opt == 'LST'):
             non_file_op(opt, arg)
+            client_listen()
         else:
             print('Invalid command. Try again.')
     elif len(split) == 2:
         arg = split[1]
         if opt == 'UPL':
             upload(arg)
+            print('done with upload')
+            client_listen()
         elif opt.upper() == 'DNL':
             # TODO handle downloads
             print("handle download")
+            client_listen()
         elif opt_req_arg(opt):
             non_file_op(opt, arg)
-            status, enc_msg = netif.receive_msg(blocking=True)
-            # removing header for decryption
-            msg_header = enc_msg[:enc_msg.find("|".encode())]
-            enc_msg = enc_msg[enc_msg.find("|".encode()) + 1:]
-            print(enc_msg[-16:])
-            msg, verified = decrypt_and_verify_mac(enc_msg)
-            if verified:
-                print(msg.decode())
-            else:
-                print(msg)
+            client_listen()
 
         else:
             print('Invalid command. Try again.')
