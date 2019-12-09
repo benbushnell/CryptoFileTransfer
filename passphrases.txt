@@ -1,0 +1,2 @@
+server passphrase: pycryptodome
+client scrypt passphrase (for file encryption key generation): pogacsa
