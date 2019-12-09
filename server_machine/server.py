@@ -259,16 +259,23 @@ while True:
             msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
             netif.send_msg(CLIENT, msg_3)
 
-
+    # f is the filename
     def download_f(f):
         try:
             # path to folder that server stores the file
-            cur_dir = os.getcwd()
+            cur_dir = USER_PATH
             src = os.path.join(cur_dir, f)
-            dst = 'client_machine/' + f
-            shutil.copy2(src, dst)
+            downloaded_dir_msg = open(src, "rb").read()
+            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
+            msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                (str(time.time()) + "|" + f + "|").encode() + downloaded_dir_msg)
+            msg_3 = "DOWNLOAD|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+            netif.send_msg(CLIENT, msg_3)
         except Exception as e:
-            raise e
+            msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                (str(time.time()) + "|" + str(e)).encode())
+            msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+            netif.send_msg(CLIENT, msg_3)
 
 
     # f is the encrypted file bytestring
@@ -284,7 +291,6 @@ while True:
             msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
             netif.send_msg(CLIENT, msg_3)
         except Exception as e:
-            print(e.with_traceback())
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + str(e)).encode())
             msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
@@ -356,8 +362,8 @@ while True:
                 make_dir(argument)
             elif operation == 'RMD':
                 remove_dir(argument)
-            elif operation == 'DNl':
-                NotImplemented
+            elif operation == 'DNL':
+                download_f(argument)
             elif operation == 'RMF':
                 remove_f(argument)
         else:
@@ -442,6 +448,7 @@ while True:
                 operation = plaintext[delim_pos + 1: delim_pos + 4]
                 argument = plaintext[delim_pos + 4:]
                 if functions.is_timestamp_valid(time.time(), ts):
+                    print(argument.decode())
                     non_file_op(operation.decode(), argument.decode())
                 else:
                     print("Timestamp Error")
@@ -460,7 +467,7 @@ while True:
                     print("Timestamp Error")
                     # TODO: Timestamp Error
                     operation_error("Timestamp Error, Operation Unsuccessful")
-
+        #status, msg = netif.receive_msg(blocking=False)
         # msg = input('Type a message: ')
         # dst = input('Type a destination address: ')
         #

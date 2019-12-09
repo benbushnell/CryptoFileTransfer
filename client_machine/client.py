@@ -187,6 +187,28 @@ def upload(filepath):
         print('Could not find file. Please try again.')
         return
 
+
+# f is the filename | nonce / file ciphertext / mac
+def download(f):
+    print('Decrypting downloaded file...')
+    try:
+        if user_private_file_key == None:
+            get_user_file_key()
+        delim_pos = f.find("|".encode())
+        filename = f[:delim_pos].decode()
+        nonce = f[delim_pos + 1: delim_pos + 17]
+        ciphertext = f[delim_pos + 17:-16]
+        mac = f[-16:]
+        file_cipher = AES.new(user_private_file_key, AES.MODE_GCM, nonce=nonce)
+        plain = file_cipher.decrypt_and_verify(ciphertext, mac)
+        with open(os.path.join(os.getcwd(), filename), "wb+") as file:
+            file.write(plain)
+        print("Downloaded successfully.")
+    except Exception as e:
+        print(e.with_traceback())
+        return
+
+
 def client_listen():
     print("listening" + str(time.time()))
     status, svr_msg = netif.receive_msg(blocking=True)
@@ -199,6 +221,7 @@ def client_listen():
     mac_tag = svr_msg[-16:]
     ciphertext = svr_msg[16:-16]
     cipher = AES.new(session_key, AES.MODE_GCM, nonce)
+    status, svr_msg = netif.receive_msg(blocking=False)
     try:
         plaintext = cipher.decrypt_and_verify(ciphertext, mac_tag)
     except (ValueError, KeyError):
@@ -206,19 +229,18 @@ def client_listen():
         # TODO: Should the client abort here?
         ("Invalid Decryption")
     ts = plaintext[:plaintext.find('|'.encode())].decode()
-    msg_body = plaintext[plaintext.find('|'.encode()) + 1:].decode()
+    msg_body = plaintext[plaintext.find('|'.encode()) + 1:]
     if not functions.is_timestamp_valid(time.time(), float(ts)):
         print("Error: Terminating Connection.")
         #TODO: Put client termination func call here, kevin
     else:
         print("got and decrypted response")
         if header == "SUCCESS":
-            print(msg_body)
+            print(msg_body.decode())
         elif header == "FAILURE":
-            print(msg_body)
+            print(msg_body.decode())
         elif header == "DOWNLOAD":
-            #TODO: handle file download once michelle is done with the server send file
-            print("Do this")
+            download(msg_body)
 
 def get_user_file_key():
     global user_private_file_key
@@ -255,7 +277,7 @@ def decrypt_and_verify_mac(enc_msg):
 
 
 def opt_req_arg(opt):
-    return opt.upper() in {'MKD', 'RMD', 'CWD', 'RMF'}
+    return opt.upper() in {'MKD', 'RMD', 'CWD', 'RMF', 'DNL'}
 
 
 # SUCCESS
@@ -312,8 +334,7 @@ while True:
             print('done with upload')
             client_listen()
         elif opt.upper() == 'DNL':
-            # TODO handle downloads
-            print("handle download")
+            non_file_op(opt, arg)
             client_listen()
         elif opt_req_arg(opt):
             non_file_op(opt, arg)
