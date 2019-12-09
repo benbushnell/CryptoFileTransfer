@@ -278,6 +278,7 @@ while True:
             with open(dst, 'wb+') as place:
                 place.write(f)
             uploaded_dir_msg = "File {0} successfully uploaded.".format(filename)
+            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + uploaded_dir_msg).encode())
             msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
