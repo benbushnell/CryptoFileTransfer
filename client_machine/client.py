@@ -105,7 +105,13 @@ netif.send_msg(SERVER, full_msg)
 # Listening for response
 status, svr_msg = netif.receive_msg(blocking=True)
 
+# checking header
+header = svr_msg[:svr_msg.find('|'.encode())]
+# remove header
+svr_msg = svr_msg[svr_msg.find('|'.encode()) + 1:]
+
 # Decrypt message body
+print(header.decode())
 msg_received = functions.rsa_hybrid_decrypt(svr_msg, user_enc_keys)
 
 # chop off the key so that we don't find an early delimiter
@@ -116,12 +122,24 @@ if sig_verified:
 else:
     print("The signature is not authentic!")
     exit(1)
-if not functions.is_timestamp_valid(time.time(), float(msg_key[16:])):
-    print("Terminating connection request.")
+
+if header.decode() == "ERR":
+
+    if not functions.is_timestamp_valid(time.time(), float(msg_key[msg_key.find("|".encode())+1:])):
+        print("Terminating connection request.")
+    else:
+        msg = msg_key[:msg_key.find("|".encode())]
+        print(msg.decode())
     exit(1)
-else:
-    session_key = msg_key[:16]
-    print("Logged in, session key retrieved")
+elif header.decode() == "VALID":
+    if not functions.is_timestamp_valid(time.time(), float(msg_key[16:])):
+        print("Terminating connection request.")
+        exit(1)
+    else:
+        session_key = msg_key[:16]
+        print("Logged in, session key retrieved")
+
+
     status, svr_msg = netif.receive_msg(blocking=False)
 
 '''
@@ -200,25 +218,43 @@ def opt_req_arg(opt):
 
 # main loop
 netif = network_interface(NET_PATH, OWN_ADDR)
-print('Main loop started...')
+print('-------------------------------------')
+print('----------Main loop started----------')
+print('-------------------------------------')
+print('Type \'help\' for available commands.')
 while True:
     msg = input('Type a command: ')
     split = msg.split(' ')
-    if len(split) == 2:
-        opt = split[0]
+    opt = split[0].strip().upper()
+    arg = None
+    if len(split) == 1:
+        if opt == 'HELP':
+            print('------------------------------------------------------------------------')
+            print('CWD <folder name>: \t Change working directory to this folder')
+            print('MKD <folder name>: \t Create a folder on the server')
+            print('RMD <folder name>: \t Remove a folder from the server')
+            print('UPL <file name>: \t Upload a file to the server')
+            print('DNL <file name>: \t Download a file from the server')
+            print('RMF <file name>: \t Remove a file from a folder on the server')
+            print('GWD <none>: \t \t Print the name of the current working directory')
+            print('LST <none>: \t \t List the content of a folder')
+            print('------------------------------------------------------------------------')
+            cont_session = input('Perform another operation? (y/n): ')
+        elif (opt == 'GWD') or (opt == 'LST'):
+            non_file_op(opt, arg)
+        else:
+            print('Invalid command. Try again.')
+    elif len(split) == 2:
         arg = split[1]
-        if opt.upper() == 'UPL':
+        if opt == 'UPL':
             upload(arg)
         elif opt_req_arg(opt):
             non_file_op(opt, arg)
         else:
-            print('Too many arguments for this command, please try again.')
-    elif len(split) > 2:
-        print('Incorrect format, cannot complete operation.')
+            print('Invalid command. Try again.')
+    elif len(split) < 1:
+        print('Too few arguments for this command, please try again.')
     else:
-        if not opt_req_arg(split[0]):
-            non_file_op(split[0], None)
-        else:
-            print('Too few arguments for this command, please try again.')
+        print('Valid command. Try again.')
 
-    if input('Perform another operation? (y/n): ') == 'n': break
+    if cont_session.strip() == 'n': break
