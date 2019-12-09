@@ -2,7 +2,9 @@
 # sender.py
 
 import os, sys, getopt, time, json
+import shutil
 from getpass import getpass
+from pathlib import Path
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
@@ -26,11 +28,13 @@ OWN_ADDR = 'S'
 CLIENT = 'A'
 user_auth_public_key = None
 user_enc_public_key = None
-user_path_dic = {"ben": "ben's folder",
-  "kevin": "kevin's folder'",
-  "michelle": "michelle's folder'",
-  "conrad": "conrad's folder'",
-  "levente": "levente's folder"}
+user_path_dic = {"ben": "",
+  "kevin": "",
+  "michelle": "",
+  "conrad": "",
+  "levente": ""}
+uid = None
+USER_PATH = None
 passphrase = None
 
 # ------------       
@@ -39,6 +43,16 @@ passphrase = None
 netif = network_interface(NET_PATH, OWN_ADDR)
 serverauth = False
 valid_headers_protocol_3 = ["NON_FILE_OP_NO_ARG", "NON_FILE_OP_ARG", "UPLOAD"]
+
+
+SERVER_MACHINE_PATH = os.path.join(os.getcwd(), 'server_machine')
+for user in user_path_dic.keys():
+    addr_dir = os.path.join(SERVER_MACHINE_PATH, user)
+    if not os.path.exists(addr_dir):
+        os.mkdir(addr_dir)
+    user_path_dic[user] = addr_dir
+
+print('Server has been successfully set up.')
 
 while True:
     # ----------------------------
@@ -176,20 +190,84 @@ while True:
     # ------ PROTOCOL PT 3 -------
     # ----------------------------
 
+    # path to user directory
+    USER_PATH = user_path_dic.get(uid.decode())
+
     def change_dir(f):
         try:
-            os.chdir(os.path.join(os.getcwd(), f))
-            print("Changed to directory {0}.".format(os.path.basename(os.getcwd())))
+            os.chdir(os.path.join(USER_PATH, f))
+            print("Changed to directory {0}.".format(
+                os.path.basename(os.getcwd())))
         except Exception as e:
             print(e)
 
-    #Moving to the folder of the user who just logged in.
-    path = user_path_dic[uid]
-    change_dir(path)
+
+    def make_dir(f):
+        try:
+            os.mkdir(os.path.join(USER_PATH, f))
+            print("Directory {0} created on server.".format(f))
+        except Exception as e:
+            print(e)
+
+
+    def remove_dir(f):
+        try:
+            os.rmdir(os.path.join(USER_PATH, f))
+            print("Directory {0} successfully removed.".format(f))
+        except Exception as e:
+            print(e)
+
+
+    def download_f(f):
+        try:
+            # path to folder that server stores the file
+            cur_dir = os.getcwd()
+            src = os.path.join(cur_dir, f)
+            dst = 'path/to/dest_dir'
+            shutil.copy2(src, dst)
+        except Exception as e:
+            print(e)
+
+    # cant remove rn if file is in a folder
+    def remove_f(f):
+        try:
+            file = os.path.join(USER_PATH, f)
+            os.remove(file)
+        except Exception as e:
+            print(e)
+
+
+    def print_dir_name():
+        # print(user_root_dir)
+        print("Current working directory: {0}".format(
+            os.path.basename(os.getcwd())))
+
+
+    def print_dir_content():
+        with os.scandir(os.getcwd()) as entries:
+            for entry in entries:
+                if entry.name[0] not in ('.', '_'):
+                    print(entry.name)
+
+
 
     def non_file_op(operation, argument):
-        print("ben is working on this")
-        #if argument is None:
+        if argument is not None:
+            if operation == 'CWD':
+                change_dir(argument)
+            elif operation == 'MKD':
+                make_dir(argument)
+            elif operation == 'RMD':
+                remove_dir(argument)
+            elif operation == 'DNl':
+                NotImplemented
+            elif operation == 'RMF':
+                remove_f(argument)
+        else:
+            if operation == 'GWD':
+                print_dir_name()
+            elif operation == 'LST':
+                print_dir_content()
 
 
 
