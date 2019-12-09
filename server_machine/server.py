@@ -451,7 +451,7 @@ while True:
                 delim_pos = plaintext.find("|".encode())
                 ts = float(plaintext[:delim_pos].decode())
                 filename = plaintext[delim_pos + 1:plaintext.find("|".encode(), delim_pos + 1)]
-                file = plaintext[plaintext.rfind("|".encode()) + 1:]
+                file = plaintext[plaintext.find("|".encode(), delim_pos + 1) + 1:]
                 if functions.is_timestamp_valid(time.time(), ts):
                     print("Uploading...")
                     upload_f(file, filename.decode())
