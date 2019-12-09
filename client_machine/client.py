@@ -239,7 +239,7 @@ while True:
             print('GWD <none>: \t \t Print the name of the current working directory')
             print('LST <none>: \t \t List the content of a folder')
             print('------------------------------------------------------------------------')
-            cont_session = input('Perform another operation? (y/n): ')
+
         elif (opt == 'GWD') or (opt == 'LST'):
             non_file_op(opt, arg)
         else:
@@ -248,6 +248,7 @@ while True:
         arg = split[1]
         if opt == 'UPL':
             upload(arg)
+            print('done with upload')
         elif opt_req_arg(opt):
             non_file_op(opt, arg)
         else:
@@ -256,5 +257,5 @@ while True:
         print('Too few arguments for this command, please try again.')
     else:
         print('Valid command. Try again.')
-
+    cont_session = input('Perform another operation? (y/n): ')
     if cont_session.strip() == 'n': break
