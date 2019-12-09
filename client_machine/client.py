@@ -181,7 +181,6 @@ def upload(filepath):
         cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
         ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest(
             (str(time.time()) + "|" + os.path.basename(filepath) + "|").encode() + enc_file)
-        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|").encode() + enc_file)
         msg_3 = "UPLOAD|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
     except FileNotFoundError:
