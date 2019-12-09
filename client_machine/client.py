@@ -125,7 +125,7 @@ else:
 
 if header.decode() == "ERR":
 
-    if not functions.is_timestamp_valid(time.time(), float(msg_key[msg_key.find("|".encode())+1:])):
+    if not functions.is_timestamp_valid(time.time(), float(msg_key[msg_key.find("|".encode()) + 1:])):
         print("Terminating connection request.")
     else:
         msg = msg_key[:msg_key.find("|".encode())]
@@ -176,7 +176,8 @@ def upload(filepath):
         # Nonce for file cipher, actual file ciphertext, and MAC for the file encryption
         enc_file = aes_cipher_file.nonce + file_ciphertext + mac
         # Encrypt timestamp along with the encrypted file using protocol encryption scheme
-        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|").encode() + enc_file)
+        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest(
+            (str(time.time()) + "|" + os.path.basename(filepath) + "|").encode() + enc_file)
         msg_3 = "UPLOAD|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
     except FileNotFoundError:
@@ -209,7 +210,7 @@ def decrypt_and_verify_mac(enc_msg):
     mac = enc_msg[-16:]
     enc_msg = enc_msg[16:-16]
 
-    cipher_portocol = AES.new(session_key, AES.MODE_GCM, nonce= nonce)
+    cipher_portocol = AES.new(session_key, AES.MODE_GCM, nonce=nonce)
     try:
         msg = cipher_portocol.decrypt_and_verify(enc_msg, mac)
         print(msg.decode())
@@ -256,22 +257,21 @@ while True:
         arg = split[1]
         if opt == 'UPL':
             upload(arg)
-            print('done with upload')
         elif opt.upper() == 'DNL':
-            #TODO handle downloads
+            # TODO handle downloads
             print("handle download")
         elif opt_req_arg(opt):
             non_file_op(opt, arg)
             status, enc_msg = netif.receive_msg(blocking=True)
             # removing header for decryption
             msg_header = enc_msg[:enc_msg.find("|".encode())]
-            enc_msg = enc_msg[enc_msg.find("|".encode())+1:]
+            enc_msg = enc_msg[enc_msg.find("|".encode()) + 1:]
             print(enc_msg[-16:])
             msg, verified = decrypt_and_verify_mac(enc_msg)
             if verified:
-               print(msg.decode())
+                print(msg.decode())
             else:
-               print(msg)
+                print(msg)
 
         else:
             print('Invalid command. Try again.')

@@ -15,7 +15,8 @@ from Crypto.Util import Padding
 from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
 
-import os,sys,inspect
+import os, sys, inspect
+
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
@@ -29,10 +30,10 @@ CLIENT = 'A'
 user_auth_public_key = None
 user_enc_public_key = None
 user_path_dic = {"ben": "",
-  "kevin": "",
-  "michelle": "",
-  "conrad": "",
-  "levente": ""}
+                 "kevin": "",
+                 "michelle": "",
+                 "conrad": "",
+                 "levente": ""}
 uid = None
 USER_PATH = None
 passphrase = None
@@ -43,7 +44,6 @@ passphrase = None
 netif = network_interface(NET_PATH, OWN_ADDR)
 serverauth = False
 valid_headers_protocol_3 = ["NON_FILE_OP_NO_ARG", "NON_FILE_OP_ARG", "UPLOAD"]
-
 
 SERVER_MACHINE_PATH = os.path.join(os.getcwd(), 'server_machine')
 for user in user_path_dic.keys():
@@ -67,9 +67,11 @@ while True:
         print(header.decode())
     if header.decode() == 'SERVER_AUTH':
         passphrase = getpass('Server key passphrase: ')
-        server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read(), passphrase=passphrase)
-        server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read(), passphrase=passphrase)
-        msg = msg[msg.find('|'.encode())+1:]
+        server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read(),
+                                                passphrase=passphrase)
+        server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read(),
+                                               passphrase=passphrase)
+        msg = msg[msg.find('|'.encode()) + 1:]
         # decrypt symmetric key
         # decrypt user's public key and nonce
 
@@ -103,7 +105,8 @@ while True:
             header = msg[:msg.find('|'.encode())]
             print(header.decode())
             if header.decode() == 'USER_AUTH':
-                server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read(), passphrase)
+                server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read(),
+                                                        passphrase)
                 server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read(), passphrase)
                 # Remove header
                 msg = msg[msg.find('|'.encode()) + 1:]
@@ -123,7 +126,7 @@ while True:
                     pwd_hash = SHA256.new(pwmsg_parts[1])
                     if not functions.is_timestamp_valid(time.time(), float(ts)):
                         print("Timestamp error")
-                        error_msg = functions.error_msg("Timestamp error",user_enc_public_key, server_auth_privatekey)
+                        error_msg = functions.error_msg("Timestamp error", user_enc_public_key, server_auth_privatekey)
 
                         netif.send_msg(CLIENT, error_msg)
                         status, msg = netif.receive_msg(blocking=False)
@@ -139,7 +142,7 @@ while True:
                                 if pwd_hash.hexdigest() == data[uid.decode()].lower():
                                     # Generate symmetric key (K_us) with scrypt
                                     salt = get_random_bytes(16)
-                                    session_key = scrypt(pwmsg_parts[1].decode(), salt, 16, N=2**14, r=8, p=1)
+                                    session_key = scrypt(pwmsg_parts[1].decode(), salt, 16, N=2 ** 14, r=8, p=1)
                                     # generate a timestamp
                                     t = str(time.time()).encode()
                                     msg_symm = session_key + t
@@ -150,13 +153,14 @@ while True:
                                     # concat signed hash to message
                                     final_msg = (str(len(msg_symm)) + "|").encode() + msg_symm + sig_hash_msg_symm
 
-                                    #encrypt message
+                                    # encrypt message
                                     enc_full_msg = functions.rsa_hybrid_encrypt(final_msg, user_enc_public_key)
 
                                     netif.send_msg(CLIENT, valid_header + enc_full_msg)
                                 else:
                                     print("incorrect password--")
-                                    error_msg = functions.error_msg("Incorrect Login", server_auth_privatekey, user_enc_public_key)
+                                    error_msg = functions.error_msg("Incorrect Login", server_auth_privatekey,
+                                                                    user_enc_public_key)
 
                                     netif.send_msg(CLIENT, error_msg)
                                     status, msg = netif.receive_msg(blocking=False)
@@ -166,7 +170,8 @@ while True:
                             else:
                                 print("incorrect username")
 
-                                error_msg = functions.error_msg("Incorrect Login", server_auth_privatekey, user_enc_public_key)
+                                error_msg = functions.error_msg("Incorrect Login", server_auth_privatekey,
+                                                                user_enc_public_key)
 
                                 netif.send_msg(CLIENT, error_msg)
                                 status, msg = netif.receive_msg(blocking=False)
@@ -182,7 +187,8 @@ while True:
                     continue
         else:
             print("Server must be authenticated first. Please restart protocol.")
-            error_msg = functions.error_msg("Server must be authenticated first. Please restart protocol.", server_auth_privatekey, user_enc_public_key)
+            error_msg = functions.error_msg("Server must be authenticated first. Please restart protocol.",
+                                            server_auth_privatekey, user_enc_public_key)
 
             netif.send_msg(CLIENT, error_msg)
             status, msg = netif.receive_msg(blocking=False)
@@ -195,13 +201,16 @@ while True:
     # path to user directory
     cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
 
+
     def update_user_path():
         return os.path.dirname(os.getcwd())
 
+
     def change_dir(f):
+        global USER_PATH
         try:
-            os.chdir(os.path.join(USER_PATH, f))
-            cur_dir_msg = "Changed to directory {0}.".format(os.path.basename(os.getcwd()))
+            USER_PATH = os.path.join(USER_PATH, f)
+            cur_dir_msg = "Changed to directory {0}.".format(os.path.basename(USER_PATH))
 
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + cur_dir_msg).encode())
@@ -251,10 +260,29 @@ while True:
             # path to folder that server stores the file
             cur_dir = os.getcwd()
             src = os.path.join(cur_dir, f)
-            dst = 'path/to/dest_dir'
+            dst = 'client_machine/' + f
             shutil.copy2(src, dst)
         except Exception as e:
             raise e
+
+
+    # f is the encrypted file bytestring
+    def upload_f(f, filename):
+        try:
+            dst = os.path.join(USER_PATH, filename)
+            with open(dst, 'wb+') as place:
+                place.write(f)
+            uploaded_dir_msg = "File {0} successfully uploaded.".format(filename)
+            msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                (str(time.time()) + "|" + uploaded_dir_msg).encode())
+            msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+            netif.send_msg(CLIENT, msg_3)
+        except Exception as e:
+            print(e.with_traceback())
+            msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                (str(time.time()) + "|" + str(e)).encode())
+            msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+            netif.send_msg(CLIENT, msg_3)
 
 
     def remove_f(f):
@@ -280,6 +308,7 @@ while True:
         msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
         netif.send_msg(CLIENT, msg_3)
 
+
     def print_dir_content():
         dir_content_list = []
         with os.scandir(os.getcwd()) as entries:
@@ -299,9 +328,7 @@ while True:
         netif.send_msg(CLIENT, msg_3)
 
 
-
-
-#Todo: Prevent user from moving outside of their own folder.
+    # Todo: Prevent user from moving outside of their own folder.
 
     def non_file_op(operation, argument):
         if argument is not None:
@@ -320,7 +347,6 @@ while True:
                 print_dir_name()
             elif operation == 'LST':
                 print_dir_content()
-
 
 
     try:
@@ -356,14 +382,14 @@ while True:
     while True:
         status, msg = netif.receive_msg(blocking=True)
         if status:
-            #grab header
+            # grab header
             header = msg[:msg.find('|'.encode())].decode()
-            #remove header
+            # remove header
             msg = msg[msg.find('|'.encode()) + 1:]
-            #check header
+            # check header
             if header not in valid_headers_protocol_3:
                 print("eat my ass")
-                #TODO: Invalid header error
+                # TODO: Invalid header error
                 operation_error("Invalid Header, Operation Unsuccessful")
             else:
                 # msg format: Nonce (16 bytes) + Ciphertext + MacTag (16 bytes)
@@ -380,12 +406,12 @@ while True:
             if header == "NON_FILE_OP_NO_ARG":
                 # plaintext format: Ts | operation
                 ts = float(plaintext[:plaintext.find("|").decode()])
-                operation = plaintext[plaintext.find("|").decode()+1:]
+                operation = plaintext[plaintext.find("|").decode() + 1:]
                 if functions.is_timestamp_valid(time.time(), ts):
                     non_file_op(operation, None)
                 else:
                     print("Timestamp Error")
-                    #Todo: Timestamp error
+                    # Todo: Timestamp error
                     operation_error("Timestamp Error, Operation Unsuccessful")
             elif header == "NON_FILE_OP_ARG":
                 # plaintext format: Ts | operation + argument
@@ -397,22 +423,21 @@ while True:
                     non_file_op(operation.decode(), argument.decode())
                 else:
                     print("Timestamp Error")
-                    #TODO: Timestamp Error
+                    # TODO: Timestamp Error
                     operation_error("Timestamp Error, Operation Unsuccessful")
             elif header == "UPLOAD":
-                # plaintext format: Ts | file
+                # plaintext format: Ts | filename | file
                 delim_pos = plaintext.find("|".encode())
                 ts = float(plaintext[:delim_pos].decode())
-                file = plaintext[delim_pos + 1:]
+                filename = plaintext[delim_pos + 1:plaintext.find("|".encode(), delim_pos + 1)]
+                file = plaintext[plaintext.rfind("|".encode()) + 1:]
                 if functions.is_timestamp_valid(time.time(), ts):
-                    print("do this")
-                    #Todo: put the file into the directory
+                    print("Uploading...")
+                    upload_f(file, filename.decode())
                 else:
                     print("Timestamp Error")
-                    #TODO: Timestamp Error
+                    # TODO: Timestamp Error
                     operation_error("Timestamp Error, Operation Unsuccessful")
-
-
 
         # msg = input('Type a message: ')
         # dst = input('Type a destination address: ')
