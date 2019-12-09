@@ -193,31 +193,34 @@ while True:
     split = msg.split(' ')
     opt = split[0].strip().upper()
     arg = None
-    if (len(split) == 1) & (opt.upper() == 'HELP'):
-        print('------------------------------------------------------------------------')
-        print('CWD <folder name>: \t Change working directory to this folder')
-        print('MKD <folder name>: \t Create a folder on the server')
-        print('RMD <folder name>: \t Remove a folder from the server')
-        print('UPL <file name>: \t Upload a file to the server')
-        print('DNL <file name>: \t Download a file from the server')
-        print('RMF <file name>: \t Remove a file from a folder on the server')
-        print('GWD <none>: \t \t Print the name of the current working directory')
-        print('LST <none>: \t \t List the content of a folder')
-        print('------------------------------------------------------------------------')
-        cont_session = input('Perform another operation? (y/n): ')
+    if len(split) == 1:
+        if opt == 'HELP':
+            print('------------------------------------------------------------------------')
+            print('CWD <folder name>: \t Change working directory to this folder')
+            print('MKD <folder name>: \t Create a folder on the server')
+            print('RMD <folder name>: \t Remove a folder from the server')
+            print('UPL <file name>: \t Upload a file to the server')
+            print('DNL <file name>: \t Download a file from the server')
+            print('RMF <file name>: \t Remove a file from a folder on the server')
+            print('GWD <none>: \t \t Print the name of the current working directory')
+            print('LST <none>: \t \t List the content of a folder')
+            print('------------------------------------------------------------------------')
+            cont_session = input('Perform another operation? (y/n): ')
+        elif (opt == 'GWD') or (opt == 'LST'):
+            non_file_op(opt, arg)
+        else:
+            print('Invalid command. Try again.')
     elif len(split) == 2:
         arg = split[1]
-        if opt.upper() == 'UPL':
+        if opt == 'UPL':
             upload(arg)
         elif opt_req_arg(opt):
             non_file_op(opt, arg)
         else:
-            print('Too many arguments for this command, please try again.')
-    elif len(split) > 2:
-        print('Incorrect format, cannot complete operation.')
+            print('Invalid command. Try again.')
+    elif len(split) < 1:
+        print('Too few arguments for this command, please try again.')
     else:
-        if not opt_req_arg(split[0]):
-            non_file_op(split[0], None)
-        else:
-            print('Too few arguments for this command, please try again.')
+        print('Valid command. Try again.')
+
     if cont_session.strip() == 'n': break
