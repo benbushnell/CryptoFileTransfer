@@ -147,16 +147,17 @@ elif header.decode() == "VALID":
 ----------------------------
 '''
 
-cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
-
 
 def non_file_op(operation, argument):
+
     print('Performing operation...')
     if argument is None:
+        cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
         ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|" + operation).encode())
         msg_3 = "NON_FILE_OP_NO_ARG|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
     else:
+        cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
         ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest(
             (str(time.time()) + "|" + operation + argument).encode())
         msg_3 = "NON_FILE_OP_ARG|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
@@ -176,8 +177,10 @@ def upload(filepath):
         # Nonce for file cipher, actual file ciphertext, and MAC for the file encryption
         enc_file = aes_cipher_file.nonce + file_ciphertext + mac
         # Encrypt timestamp along with the encrypted file using protocol encryption scheme
+        cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
         ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest(
             (str(time.time()) + "|" + os.path.basename(filepath) + "|").encode() + enc_file)
+        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|").encode() + enc_file)
         msg_3 = "UPLOAD|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
     except FileNotFoundError:
@@ -242,7 +245,7 @@ def decrypt_and_verify_mac(enc_msg):
     mac = enc_msg[-16:]
     enc_msg = enc_msg[16:-16]
 
-    cipher_portocol = AES.new(session_key, AES.MODE_GCM, nonce=nonce)
+    cipher_portocol = AES.new(session_key, AES.MODE_GCM, nonce= nonce)
     try:
         msg = cipher_portocol.decrypt_and_verify(enc_msg, mac)
         print(msg.decode())
