@@ -239,7 +239,6 @@ while True:
             print('GWD <none>: \t \t Print the name of the current working directory')
             print('LST <none>: \t \t List the content of a folder')
             print('------------------------------------------------------------------------')
-
         elif (opt == 'GWD') or (opt == 'LST'):
             non_file_op(opt, arg)
         else:
