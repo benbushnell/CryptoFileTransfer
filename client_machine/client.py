@@ -134,6 +134,7 @@ if header.decode() == "ERR":
 elif header.decode() == "VALID":
     if not functions.is_timestamp_valid(time.time(), float(msg_key[16:])):
         print("Terminating connection request.")
+
         exit(1)
     else:
         session_key = msg_key[:16]
@@ -283,10 +284,26 @@ while True:
             print('RMF <file name>: \t Remove a file from a folder on the server')
             print('GWD <none>: \t \t Print the name of the current working directory')
             print('LST <none>: \t \t List the content of a folder')
+            print('QUIT        \t \t To quit the session')
             print('------------------------------------------------------------------------')
         elif (opt == 'GWD') or (opt == 'LST'):
             non_file_op(opt, arg)
             client_listen()
+        elif opt.upper() == 'QUIT':
+            non_file_op(opt, None)
+
+            msg_header = enc_msg[:enc_msg.find("|".encode())]
+            enc_msg = enc_msg[enc_msg.find("|".encode()) + 1:]
+            enc_msg, verified = decrypt_and_verify_mac(enc_msg)
+
+            print("Quitting")
+            if verified:
+                if not functions.is_timestamp_valid(time.time(), float(msg.decode())):
+                    print("Timestamp is not valid")
+                exit(1)
+            else:
+                print(msg)
+                exit(1)
         else:
             print('Invalid command. Try again.')
     elif len(split) == 2:
@@ -309,5 +326,6 @@ while True:
         print('Too few arguments for this command, please try again.')
     else:
         print('Valid command. Try again.')
+
     cont_session = input('Perform another operation? (y/n): ')
     if cont_session.strip() == 'n': break

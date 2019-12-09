@@ -338,6 +338,12 @@ while True:
         msg_3 = "ERROR|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
         netif.send_msg(CLIENT, msg_3)
 
+    def QUIT():
+        msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(str(time.time()).encode())
+        msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+        netif.send_msg(CLIENT, msg_3)
+        print('Ending Session')
+
 
     # Todo: Prevent user from moving outside of their own folder.
 
@@ -358,6 +364,8 @@ while True:
                 print_dir_name()
             elif operation == 'LST':
                 print_dir_content()
+            elif operation == 'QUIT':
+                QUIT()
 
 
 
@@ -417,10 +425,11 @@ while True:
                     operation_error("Invalid Decryption, Operation Unsuccessful")
             if header == "NON_FILE_OP_NO_ARG":
                 # plaintext format: Ts | operation
-                ts = float(plaintext[:plaintext.find("|".encode())].decode())
-                operation = plaintext[plaintext.find("|".encode())+1:].decode()
+                ts = float(plaintext[:plaintext.find("|".encode())])
+                operation = plaintext[plaintext.find("|".encode())+1:]
                 if functions.is_timestamp_valid(time.time(), ts):
-                    non_file_op(operation, None)
+                    non_file_op(operation.decode(), None)
+                    if operation.decode() == 'QUIT': break
                 else:
                     print("Timestamp Error")
                     # Todo: Timestamp error
