@@ -43,7 +43,7 @@ passphrase = None
 # ------------
 netif = network_interface(NET_PATH, OWN_ADDR)
 serverauth = False
-valid_headers_protocol_3 = ["NON_FILE_OP_NO_ARG", "NON_FILE_OP_ARG", "UPLOAD"]
+valid_headers_protocol_3 = ["NON_FILE_OP_NO_ARG", "NON_FILE_OP_ARG", "UPLOAD", "TERMINATE"]
 
 SERVER_MACHINE_PATH = os.path.join(os.getcwd(), 'server_machine')
 for user in user_path_dic.keys():
@@ -59,19 +59,17 @@ while True:
     # ------ PROTOCOL PT 1 -------
     # ----------------------------
     print("Starting")
+    if passphrase == None:
+        passphrase = getpass('Server key passphrase: ')
 
     # Calling receive_msg() in blocking mode ...
     status, msg = netif.receive_msg(blocking=True)  # when returns, status is True and msg contains a message
     if status:
         header = msg[:msg.find('|'.encode())]
-        print(header.decode())
     if header.decode() == 'SERVER_AUTH':
-        passphrase = getpass('Server key passphrase: ')
-        server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read(),
-                                                passphrase=passphrase)
-        server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read(),
-                                               passphrase=passphrase)
-        msg = msg[msg.find('|'.encode()) + 1:]
+        server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read(), passphrase=passphrase)
+        server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read(), passphrase=passphrase)
+        msg = msg[msg.find('|'.encode())+1:]
         # decrypt symmetric key
         # decrypt user's public key and nonce
 
@@ -347,9 +345,11 @@ while True:
         netif.send_msg(CLIENT, msg_3)
 
     def QUIT():
-        msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(str(time.time()).encode())
+        cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
+        msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|QUIT").encode())
         msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
         netif.send_msg(CLIENT, msg_3)
+        return False
         print('Ending Session')
 
 
@@ -372,8 +372,6 @@ while True:
                 print_dir_name()
             elif operation == 'LST':
                 print_dir_content()
-            elif operation == 'QUIT':
-                QUIT()
 
 
 
@@ -407,7 +405,8 @@ while True:
     # main loop
 
     print('Main loop started...')
-    while True:
+    main = True
+    while main:
         status, msg = netif.receive_msg(blocking=True)
         if status:
             # grab header
@@ -416,8 +415,7 @@ while True:
             msg = msg[msg.find('|'.encode()) + 1:]
             # check header
             if header not in valid_headers_protocol_3:
-                print("eat my ass")
-                # TODO: Invalid header error
+                print("Invalid Header")
                 operation_error("Invalid Header, Operation Unsuccessful")
             else:
                 # msg format: Nonce (16 bytes) + Ciphertext + MacTag (16 bytes)
@@ -429,7 +427,6 @@ while True:
                     plaintext = cipher.decrypt_and_verify(ciphertext, mac_tag)
                 except (ValueError, KeyError):
                     print("Invalid Decryption")
-                    # TODO: Error Handling
                     operation_error("Invalid Decryption, Operation Unsuccessful")
             if header == "NON_FILE_OP_NO_ARG":
                 # plaintext format: Ts | operation
@@ -437,10 +434,9 @@ while True:
                 operation = plaintext[plaintext.find("|".encode())+1:]
                 if functions.is_timestamp_valid(time.time(), ts):
                     non_file_op(operation.decode(), None)
-                    if operation.decode() == 'QUIT': break
+                    if operation.decode() == 'QUIT': main = QUIT()
                 else:
                     print("Timestamp Error")
-                    # Todo: Timestamp error
                     operation_error("Timestamp Error, Operation Unsuccessful")
             elif header == "NON_FILE_OP_ARG":
                 # plaintext format: Ts | operation + argument
@@ -452,7 +448,6 @@ while True:
                     non_file_op(operation.decode(), argument.decode())
                 else:
                     print("Timestamp Error")
-                    # TODO: Timestamp Error
                     operation_error("Timestamp Error, Operation Unsuccessful")
             elif header == "UPLOAD":
                 # plaintext format: Ts | filename | file
@@ -465,7 +460,17 @@ while True:
                     upload_f(file, filename.decode())
                 else:
                     print("Timestamp Error")
-                    # TODO: Timestamp Error
+                    operation_error("Timestamp Error, Operation Unsuccessful")
+            elif header == "TERMINATE":
+                # plaintext format: Ts | file
+                delim_pos = plaintext.find("|".encode())
+                ts = float(plaintext[:delim_pos].decode())
+                file = plaintext[delim_pos + 1:]
+                if functions.is_timestamp_valid(time.time(), ts):
+                    main = False
+                    operation_error("Terminating")
+                else:
+                    print("Timestamp Error")
                     operation_error("Timestamp Error, Operation Unsuccessful")
 
         # msg = input('Type a message: ')

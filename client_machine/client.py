@@ -32,6 +32,7 @@ user_auth_keys = RSA.generate(2048)
 user_enc_keys = RSA.generate(2048)
 session_key = None
 user_private_file_key = None
+password = None
 
 # ----------------------------
 # ------ PROTOCOL PT 1 -------
@@ -83,6 +84,7 @@ status, svr_msg = netif.receive_msg(blocking=False)
 uid = input("Enter User ID: ")
 
 ##TODO: Garbage collect password
+
 password = getpass("Enter Password: ")
 
 pwmsg = uid + "|" + password + "|" + str(time.time())
@@ -159,8 +161,7 @@ def non_file_op(operation, argument):
         netif.send_msg(SERVER, msg_3)
     else:
         cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
-        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest(
-            (str(time.time()) + "|" + operation + argument).encode())
+        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|" + operation + argument).encode())
         msg_3 = "NON_FILE_OP_ARG|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
 
@@ -188,7 +189,7 @@ def upload(filepath):
         return
 
 def client_listen():
-    print("listening" + str(time.time()))
+    print("listening " + str(time.time()))
     status, svr_msg = netif.receive_msg(blocking=True)
     print("listen has heard")
     #read header
@@ -203,17 +204,20 @@ def client_listen():
         plaintext = cipher.decrypt_and_verify(ciphertext, mac_tag)
     except (ValueError, KeyError):
         print("Invalid Decryption")
-        # TODO: Should the client abort here?
+        terminate_session()
+        exit(1)
         ("Invalid Decryption")
     ts = plaintext[:plaintext.find('|'.encode())].decode()
     msg_body = plaintext[plaintext.find('|'.encode()) + 1:].decode()
     if not functions.is_timestamp_valid(time.time(), float(ts)):
         print("Error: Terminating Connection.")
-        #TODO: Put client termination func call here, kevin
+        terminate_session()
+        exit(1)
     else:
         print("got and decrypted response")
         if header == "SUCCESS":
-            print(msg_body)
+            if msg_body == 'QUIT':
+                exit(1)
             if str('|') in msg_body:
                 content = msg_body.split('|')
                 for item in content:
@@ -225,6 +229,11 @@ def client_listen():
         elif header == "DOWNLOAD":
             #TODO: handle file download once michelle is done with the server send file
             print("Do this")
+        elif header == "ERROR":
+            print(msg_body)
+            if msg_body == "Terminating":
+                return True
+
 
 def get_user_file_key():
     global user_private_file_key
@@ -251,7 +260,7 @@ def decrypt_and_verify_mac(enc_msg):
     mac = enc_msg[-16:]
     enc_msg = enc_msg[16:-16]
 
-    cipher_portocol = AES.new(session_key, AES.MODE_GCM, nonce= nonce)
+    cipher_portocol = AES.new(session_key, AES.MODE_GCM, nonce=nonce)
     try:
         msg = cipher_portocol.decrypt_and_verify(enc_msg, mac)
         print(msg.decode())
@@ -262,6 +271,12 @@ def decrypt_and_verify_mac(enc_msg):
 
 def opt_req_arg(opt):
     return opt.upper() in {'MKD', 'RMD', 'CWD', 'RMF'}
+
+def terminate_session():
+    cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
+    ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|" + "Quitting Session").encode())
+    msg_3 = "TERMINATE|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
+    netif.send_msg(SERVER, msg_3)
 
 
 # SUCCESS
@@ -296,19 +311,7 @@ while True:
             client_listen()
         elif opt.upper() == 'QUIT':
             non_file_op(opt, None)
-
-            msg_header = enc_msg[:enc_msg.find("|".encode())]
-            enc_msg = enc_msg[enc_msg.find("|".encode()) + 1:]
-            enc_msg, verified = decrypt_and_verify_mac(enc_msg)
-
-            print("Quitting")
-            if verified:
-                if not functions.is_timestamp_valid(time.time(), float(msg.decode())):
-                    print("Timestamp is not valid")
-                exit(1)
-            else:
-                print(msg)
-                exit(1)
+            client_listen()
         else:
             print('Invalid command. Try again.')
     elif len(split) == 2:
@@ -333,4 +336,7 @@ while True:
         print('Valid command. Try again.')
 
     cont_session = input('Perform another operation? (y/n): ')
-    if cont_session.strip() == 'n': break
+    if cont_session.strip() == 'n':
+        terminate_session()
+        if client_listen():
+            break
