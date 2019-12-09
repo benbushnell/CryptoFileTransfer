@@ -11,7 +11,6 @@ except getopt.GetoptError:
     print('Type "userinterface.py -h" for help.')
     sys.exit(1)
 
-
 folder_name = ''
 file_name = ''
 
@@ -21,7 +20,6 @@ def change_dir(f):
         print("Changed to directory {0}.".format(os.path.basename(os.getcwd())))
     except Exception as e:
         print(e)
-
 
 def make_dir(f):
     try:

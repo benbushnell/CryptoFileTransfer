@@ -3,7 +3,6 @@
 
 import os, sys, getopt, time, json
 import shutil
-import this
 from getpass import getpass
 from pathlib import Path
 
@@ -157,7 +156,6 @@ while True:
                                     netif.send_msg(CLIENT, valid_header + enc_full_msg)
                                 else:
                                     print("incorrect password--")
-                                    # TODO send error message to client
                                     error_msg = functions.error_msg("Incorrect Login", server_auth_privatekey, user_enc_public_key)
 
                                     netif.send_msg(CLIENT, error_msg)
@@ -208,6 +206,7 @@ while True:
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + cur_dir_msg).encode())
             msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+            print(len(msg_mac))
             netif.send_msg(CLIENT, msg_3)
         except Exception as e:
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
@@ -227,7 +226,8 @@ while True:
         except Exception as e:
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + str(e)).encode())
-            msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+            nonce = cipher_protocol_3.nonce
+            msg_3 = "FAILURE|".encode() + nonce + msg_txt + msg_mac
             netif.send_msg(CLIENT, msg_3)
 
 
@@ -293,6 +293,14 @@ while True:
         netif.send_msg(CLIENT, msg_3)
 
 
+    def operation_error(error_msg):
+        msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|" + error_msg).encode())
+        msg_3 = "ERROR|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+        netif.send_msg(CLIENT, msg_3)
+
+
+
+
 #Todo: Prevent user from moving outside of their own folder.
 
     def non_file_op(operation, argument):
@@ -356,26 +364,29 @@ while True:
             if header not in valid_headers_protocol_3:
                 print("eat my ass")
                 #TODO: Invalid header error
+                operation_error("Invalid Header, Operation Unsuccessful")
             else:
                 # msg format: Nonce (16 bytes) + Ciphertext + MacTag (16 bytes)
                 nonce = msg[:16]
                 mac_tag = msg[-16:]
                 ciphertext = msg[16:-16]
                 cipher = AES.new(session_key, AES.MODE_GCM, nonce)
-            try:
-                plaintext = cipher.decrypt_and_verify(ciphertext, mac_tag)
-            except (ValueError, KeyError):
-                print("Invalid Decryption")
-                # TODO: Error Handling
+                try:
+                    plaintext = cipher.decrypt_and_verify(ciphertext, mac_tag)
+                except (ValueError, KeyError):
+                    print("Invalid Decryption")
+                    # TODO: Error Handling
+                    operation_error("Invalid Decryption, Operation Unsuccessful")
             if header == "NON_FILE_OP_NO_ARG":
                 # plaintext format: Ts | operation
-                ts = float(plaintext[:-3].decode())
-                operation = plaintext[-3:].decode()
+                ts = float(plaintext[:plaintext.find("|").decode()])
+                operation = plaintext[plaintext.find("|").decode()+1:]
                 if functions.is_timestamp_valid(time.time(), ts):
                     non_file_op(operation, None)
                 else:
                     print("Timestamp Error")
                     #Todo: Timestamp error
+                    operation_error("Timestamp Error, Operation Unsuccessful")
             elif header == "NON_FILE_OP_ARG":
                 # plaintext format: Ts | operation + argument
                 delim_pos = plaintext.find("|".encode())
@@ -383,10 +394,11 @@ while True:
                 operation = plaintext[delim_pos + 1: delim_pos + 4]
                 argument = plaintext[delim_pos + 4:]
                 if functions.is_timestamp_valid(time.time(), ts):
-                    non_file_op(operation, argument)
+                    non_file_op(operation.decode(), argument.decode())
                 else:
                     print("Timestamp Error")
                     #TODO: Timestamp Error
+                    operation_error("Timestamp Error, Operation Unsuccessful")
             elif header == "UPLOAD":
                 # plaintext format: Ts | file
                 delim_pos = plaintext.find("|".encode())
@@ -398,12 +410,13 @@ while True:
                 else:
                     print("Timestamp Error")
                     #TODO: Timestamp Error
+                    operation_error("Timestamp Error, Operation Unsuccessful")
 
 
 
-        msg = input('Type a message: ')
-        dst = input('Type a destination address: ')
-
-        netif.send_msg(dst, msg.encode('utf-8'))
+        # msg = input('Type a message: ')
+        # dst = input('Type a destination address: ')
+        #
+        # netif.send_msg(dst, msg.encode('utf-8'))
 
         if input('Continue? (y/n): ') == 'n': break

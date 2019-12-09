@@ -139,7 +139,6 @@ elif header.decode() == "VALID":
         session_key = msg_key[:16]
         print("Logged in, session key retrieved")
 
-
     status, svr_msg = netif.receive_msg(blocking=False)
 
 '''
@@ -157,15 +156,11 @@ def non_file_op(operation, argument):
         ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + operation).encode())
         msg_3 = "NON_FILE_OP_NO_ARG|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
-        status, msg = netif.receive_msg(blocking=True)
-        print(msg)
     else:
         ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest(
             (str(time.time()) + "|" + operation + argument).encode())
         msg_3 = "NON_FILE_OP_ARG|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
-        status, msg = netif.receive_msg(blocking=True)
-        print(msg)
 
 
 def upload(filepath):
@@ -209,8 +204,22 @@ def get_user_file_key():
         exit(1)
 
 
+def decrypt_and_verify_mac(enc_msg):
+    nonce = enc_msg[:16]
+    mac = enc_msg[-16:]
+    enc_msg = enc_msg[16:-16]
+
+    cipher_portocol = AES.new(session_key, AES.MODE_GCM, nonce= nonce)
+    try:
+        msg = cipher_portocol.decrypt_and_verify(enc_msg, mac)
+        print(msg.decode())
+        return msg, True
+    except (ValueError, KeyError) as e:
+        return e, False
+
+
 def opt_req_arg(opt):
-    return opt.upper() in {'MKD', 'RMD', 'CWD', 'DNL', 'RMF'}
+    return opt.upper() in {'MKD', 'RMD', 'CWD', 'RMF'}
 
 
 # SUCCESS
@@ -248,8 +257,22 @@ while True:
         if opt == 'UPL':
             upload(arg)
             print('done with upload')
+        elif opt.upper() == 'DNL':
+            #TODO handle downloads
+            print("handle download")
         elif opt_req_arg(opt):
             non_file_op(opt, arg)
+            status, enc_msg = netif.receive_msg(blocking=True)
+            # removing header for decryption
+            msg_header = enc_msg[:enc_msg.find("|".encode())]
+            enc_msg = enc_msg[enc_msg.find("|".encode())+1:]
+            print(enc_msg[-16:])
+            msg, verified = decrypt_and_verify_mac(enc_msg)
+            if verified:
+               print(msg.decode())
+            else:
+               print(msg)
+
         else:
             print('Invalid command. Try again.')
     elif len(split) < 1:
