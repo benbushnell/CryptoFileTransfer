@@ -214,6 +214,12 @@ def client_listen():
         print("got and decrypted response")
         if header == "SUCCESS":
             print(msg_body)
+            if str('|') in msg_body:
+                content = msg_body.split('|')
+                for item in content:
+                    print(item)
+            else:
+                print(msg_body)
         elif header == "FAILURE":
             print(msg_body)
         elif header == "DOWNLOAD":

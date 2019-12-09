@@ -310,7 +310,8 @@ while True:
 
 
     def print_dir_name():
-        cur_dir_msg = "Current working directory: {0}".format((os.getcwd()))
+        cur_dir_msg = "Current working directory: {0}".format(
+            USER_PATH.rsplit('/', 1)[-1])
         cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
         msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
             (str(time.time()) + "|" + cur_dir_msg).encode())
@@ -321,11 +322,17 @@ while True:
 
     def print_dir_content():
         dir_content_list = []
-        with os.scandir(os.getcwd()) as entries:
+        with os.scandir(USER_PATH) as entries:
             for entry in entries:
                 if entry.name[0] not in ('.', '_'):
-                    dir_content_list.append(entry)
-        msg_to_send = "|".join(dir_content_list)
+                    dir_content_list.append(
+                        str(entry).strip("<DirEntry '").strip("'>"))
+
+        msg_to_send = ""
+        if len(dir_content_list) != 0:
+            msg_to_send = "|".join(dir_content_list)
+        else:
+            msg_to_send = "The current directory is empty."
         cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
         msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
             (str(time.time()) + "|" + msg_to_send).encode())
