@@ -3,13 +3,15 @@
 
 import os, sys, getopt, time
 from Crypto.Cipher import AES
+from Crypto.Protocol.KDF import scrypt
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pss
 from Crypto.Hash import SHA256
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto import Random
 from Crypto.Util import Padding
-import os,sys,inspect
+import os, sys, inspect
+
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
@@ -29,6 +31,7 @@ netif = network_interface(NET_PATH, OWN_ADDR)
 user_auth_keys = RSA.generate(2048)
 user_enc_keys = RSA.generate(2048)
 session_key = None
+user_private_file_key = None
 
 # ----------------------------
 # ------ PROTOCOL PT 1 -------
@@ -139,7 +142,8 @@ def non_file_op(operation, argument):
         status, msg = netif.receive_msg(blocking=True)
         print(msg)
     else:
-        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|" + operation + argument).encode())
+        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest(
+            (str(time.time()) + "|" + operation + argument).encode())
         msg_3 = "NON_FILE_OP_ARG|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
         netif.send_msg(SERVER, msg_3)
         status, msg = netif.receive_msg(blocking=True)
@@ -149,17 +153,47 @@ def non_file_op(operation, argument):
 def upload(filepath):
     print('Performing upload...')
     try:
-        f = open(filepath, "rb")
+        f = open(filepath, "rb").read()
+        if user_private_file_key == None:
+            get_user_file_key()
+        # AES-GCM cipher for file encryption
+        aes_cipher_file = AES.new(user_private_file_key, AES.MODE_GCM)
+        # Encrypt file
+        file_ciphertext, mac = aes_cipher_file.encrypt_and_digest(f)
+        # Nonce for file cipher, actual file ciphertext, and MAC for the file encryption
+        enc_file = aes_cipher_file.nonce + file_ciphertext + mac
+        # Encrypt timestamp along with the encrypted file using protocol encryption scheme
+        ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|").encode() + enc_file)
+        msg_3 = "UPLOAD|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
+        netif.send_msg(SERVER, msg_3)
     except FileNotFoundError:
         print('Could not find file. Please try again.')
         return
-    ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|").encode() + f.read())
-    msg_3 = "UPLOAD|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
-    netif.send_msg(SERVER, msg_3)
+
+
+def get_user_file_key():
+    global user_private_file_key
+    user_passphrase = getpass('Type file decryption passphrase. This will be stored for the session: ')
+    salt = open('client_machine/client_private_symm_key_salt.pem', 'rb').read()
+    user_private_file_key_temp = scrypt(user_passphrase, salt, 16, N=2 ** 14, r=8, p=1)
+    # test with pre-encrypted file to ensure the passphrase is correct
+    try:
+        verif_file = open('client_machine/verification_file.pem', 'rb').read()
+        nonce = verif_file[:16]
+        ciphertext = verif_file[16:-16]
+        mac = verif_file[-16:]
+        test_cipher = AES.new(user_private_file_key_temp, AES.MODE_GCM, nonce=nonce)
+        plaintext = test_cipher.decrypt_and_verify(ciphertext, mac)
+        # assign the key if no error is thrown by the previous line
+        user_private_file_key = user_private_file_key_temp
+    except (ValueError, KeyError):
+        print('Incorrect file passphrase. Terminating connection.')
+        exit(1)
 
 
 def opt_req_arg(opt):
     return opt.upper() in {'MKD', 'RMD', 'CWD', 'DNL', 'RMF'}
+
 
 # SUCCESS
 # FAILURE

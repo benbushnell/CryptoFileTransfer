@@ -13,7 +13,8 @@ from Crypto.Util import Padding
 from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
 
-import os,sys,inspect
+import os, sys, inspect
+
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
@@ -26,20 +27,19 @@ OWN_ADDR = 'S'
 CLIENT = 'A'
 user_auth_public_key = None
 user_enc_public_key = None
-user_path_dic = {"ben": "ben's folder",
-  "kevin": "kevin's folder'",
-  "michelle": "michelle's folder'",
-  "conrad": "conrad's folder'",
-  "levente": "levente's folder"}
+user_path_dic = {"ben": "ben",
+                 "kevin": "kevin",
+                 "michelle": "michelle",
+                 "conrad": "conrad",
+                 "levente": "levente"}
 passphrase = None
 
-# ------------       
+# ------------
 # main program
 # ------------
 netif = network_interface(NET_PATH, OWN_ADDR)
 serverauth = False
 valid_headers_protocol_3 = ["NON_FILE_OP_NO_ARG", "NON_FILE_OP_ARG", "UPLOAD"]
-
 
 # ----------------------------
 # ------ PROTOCOL PT 1 -------
@@ -51,9 +51,10 @@ if status:
     header = msg[:msg.find('|'.encode())]
 if header.decode() == 'SERVER_AUTH':
     passphrase = getpass('Server key passphrase: ')
-    server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read(), passphrase=passphrase)
+    server_auth_privatekey = RSA.import_key(open('server_keys/server_auth_privatekey.pem').read(),
+                                            passphrase=passphrase)
     server_enc_privatekey = RSA.import_key(open('server_keys/server_enc_privatekey.pem').read(), passphrase=passphrase)
-    msg = msg[msg.find('|'.encode())+1:]
+    msg = msg[msg.find('|'.encode()) + 1:]
     # decrypt symmetric key
     # decrypt user's public key and nonce
 
@@ -124,7 +125,7 @@ if serverauth:
                                 # concat signed hash to message
                                 final_msg = (str(len(msg_symm)) + "|").encode() + msg_symm + sig_hash_msg_symm
 
-                                #encrypt message
+                                # encrypt message
                                 enc_full_msg = functions.rsa_hybrid_encrypt(final_msg, user_enc_public_key)
 
                                 netif.send_msg(CLIENT, enc_full_msg)
@@ -143,6 +144,7 @@ else:
     exit(1)
 status, msg = netif.receive_msg(blocking=False)
 
+
 # ----------------------------
 # ------ PROTOCOL PT 3 -------
 # ----------------------------
@@ -154,14 +156,15 @@ def change_dir(f):
     except Exception as e:
         print(e)
 
-#Moving to the folder of the user who just logged in.
-path = user_path_dic[uid]
+
+# Moving to the folder of the user who just logged in.
+path = user_path_dic[uid.decode()]
 change_dir(path)
+
 
 def non_file_op(operation, argument):
     print("ben is working on this")
-    #if argument is None:
-
+    # if argument is None:
 
 
 try:
@@ -197,14 +200,14 @@ print('Main loop started...')
 while True:
     status, msg = netif.receive_msg(blocking=True)
     if status:
-        #grab header
+        # grab header
         header = msg[:msg.find('|'.encode())].decode()
-        #remove header
+        # remove header
         msg = msg[msg.find('|'.encode()) + 1:]
-        #check header
+        # check header
         if header not in valid_headers_protocol_3:
             print("eat my ass")
-            #TODO: Invalid header error
+            # TODO: Invalid header error
         else:
             # msg format: Nonce (16 bytes) + Ciphertext + MacTag (16 bytes)
             nonce = msg[:16]
@@ -224,7 +227,7 @@ while True:
                 non_file_op(operation, None)
             else:
                 print("Timestamp Error")
-                #Todo: Timestamp error
+                # Todo: Timestamp error
         elif header == "NON_FILE_OP_ARG":
             # plaintext format: Ts | operation + argument
             delim_pos = plaintext.find("|".encode())
@@ -235,7 +238,7 @@ while True:
                 non_file_op(operation, argument)
             else:
                 print("Timestamp Error")
-                #TODO: Timestamp Error
+                # TODO: Timestamp Error
         elif header == "UPLOAD":
             # plaintext format: Ts | file
             delim_pos = plaintext.find("|".encode())
@@ -243,12 +246,10 @@ while True:
             file = plaintext[delim_pos + 1:]
             if functions.is_timestamp_valid(time.time(), ts):
                 print("do this")
-                #Todo: put the file into the directory
+                # Todo: put the file into the directory
             else:
                 print("Timestamp Error")
-                #TODO: Timestamp Error
-
-
+                # TODO: Timestamp Error
 
     msg = input('Type a message: ')
     dst = input('Type a destination address: ')
