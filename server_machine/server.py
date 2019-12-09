@@ -192,30 +192,53 @@ while True:
 
     # path to user directory
     USER_PATH = user_path_dic.get(uid.decode())
+    cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
+
 
     def change_dir(f):
         try:
             os.chdir(os.path.join(USER_PATH, f))
             print("Changed to directory {0}.".format(
                 os.path.basename(os.getcwd())))
+            msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|" + "Changed to directory {0}.".format(
+                os.path.basename(os.getcwd()))).encode())
+            msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
+            netif.send_msg(CLIENT, msg_3)
         except Exception as e:
-            print(e)
+            msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                (str(time.time()) + "|" + str(e)).encode())
+            msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
+            netif.send_msg(CLIENT, msg_3)
 
 
     def make_dir(f):
         try:
             os.mkdir(os.path.join(USER_PATH, f))
             print("Directory {0} created on server.".format(f))
+            msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                (str(time.time()) + "|" + "Directory {0} created on server.".format(f)).encode())
+            msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
+            netif.send_msg(CLIENT, msg_3)
         except Exception as e:
-            print(e)
+            msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                (str(time.time()) + "|" + str(e)).encode())
+            msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
+            netif.send_msg(CLIENT, msg_3)
 
 
     def remove_dir(f):
         try:
             os.rmdir(os.path.join(USER_PATH, f))
             print("Directory {0} successfully removed.".format(f))
+            msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                (str(time.time()) + "|" + "Directory {0} successfully removed.".format(f)).encode())
+            msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
+            netif.send_msg(CLIENT, msg_3)
         except Exception as e:
-            print(e)
+            msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                (str(time.time()) + "|" + str(e)).encode())
+            msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
+            netif.send_msg(CLIENT, msg_3)
 
 
     def download_f(f):
@@ -226,7 +249,7 @@ while True:
             dst = 'path/to/dest_dir'
             shutil.copy2(src, dst)
         except Exception as e:
-            print(e)
+            raise e
 
     # cant remove rn if file is in a folder
     def remove_f(f):
@@ -234,14 +257,18 @@ while True:
             file = os.path.join(USER_PATH, f)
             os.remove(file)
         except Exception as e:
-            print(e)
+            raise e
 
 
     def print_dir_name():
         # print(user_root_dir)
         print("Current working directory: {0}".format(
             os.path.basename(os.getcwd())))
-
+        msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+            (str(time.time()) + "|" + "Current working directory: {0}".format(
+            os.path.basename(os.getcwd()))).encode())
+        msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
+        netif.send_msg(CLIENT, msg_3)
 
     def print_dir_content():
         with os.scandir(os.getcwd()) as entries:
