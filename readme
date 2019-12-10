@@ -1,0 +1,84 @@
+Readme for Crypto Final Project
+
+Ben, Michelle, Kevin, and Conrad
+
+The project is contained in the cryptofinal folder.
+
+-----------------------
+Implementation summary:
+-----------------------
+
+Protocol 1: Server Authentication
+
+In this step the client sends a message to the server containing:
+
+the client's public authentication key (which will be used for PSS), the client's public encryption key (which will be used to encrypt symmetric AES keys), a nonce (which will be used to verify the server's response), and the client's timestamp (which the server will use to verify freshness of this message.)
+
+All these things are wrapped into a message that is hybrid encrypted with RSA-AES.
+Upon receiving this message the server decrypts it, saves the client's public keys, and sends back an RSA-AES encrypted message with the nonce that the user sent and the server's own timestamp.
+
+When the client decrypts this message and the nonce checks properly, protocol 2 begins. If at any point one of the checks returns an error, the connection is terminated and the protocol must be restarted.
+
+Protocol 2: User Authentication
+
+In this step, the client is prompted to enter their username and password. You have been given your own account and its associated folder on the server. All sign-in and execution details will be listed below. The client sends the server their username, pasword, and timestamp in a message that is RSA-AES encrypted, but with a pss signature inside. 
+
+When the server receives this message, it decrypts it and first verifies the pss signature to make sure the message hasn't been altered. Then it hashes the password and checks the hash against the stored password hash in the server. If either the username or password do not match, the client is disconnected and client.py aborted. If they do match, the server sends back a session key (encrypted with RSA-AES and verified with pss) that will be used with AES for the remainder of the session. Then protcol 3 starts.
+
+Protocol 3: File Operations and Transfer
+
+This protcol encompasses all of the file operation functionality of the project. Messages in this protocol are all handled in a very similar way. 
+
+The client sends a message to the server containing the command that they wish to perform. Some commands have arguments, some don't, and upload has a file. In all cases, the name of the command, the argument / file (if any), and the client's timestamp are encrypted with AES in GCM mode and sent to the server. 
+
+When a user uploads a file to the server, the file is encrypted locally on the user's device with a symmetric key that only the user has access to. The user's key is passphrase protected and only becomes available to our program with a valid login.
+
+When they download a file from the server it is initially still encrypted with this key so we decrypt it upon arrival.
+
+The server decrypts and verifies, and will return to the client a success message, a failure message, or an error message.
+
+All three types of messages are encrypted using AES in GCM mode and must be decrypted and verified by the client. 
+
+A success message usually just prints something to the user's console then allows them to make further commands. In the case of download a file will be included,
+
+A failure message will just print the failure to the user's console (usually an invalid path) and allow the user to make another command.
+
+An error message means that something in the encryption / decryption / timestamp verification pipeline went wrong. A message will be printed and then the connection terminated. Errors are kept intentionally vague so as to mitigate oracle attacks.
+
+The client can end the connection at any point that they are prompted to make a command with QUIT. This notifies the server that they are leaving, the server acknowledges this and once the user authenticates the acknowledgment the client disconnects.
+
+-------------------
+HOW TO RUN:
+IMPORTANT: STAY IN THE CRYPTOFINAL FOLDER
+
+Run network.py in one terminal
+
+Run server_machine/server.py in another
+
+Run client_machine/client.py in a third
+
+on server.py, when prompted to enter a passphrase, input pycryptodome 
+
+on client.py, when promped for a user id and password, use:
+
+username = levente
+password = kiskacsa
+
+When you are prompted to enter a command, type help for commands and usage.
+
+When you first upload or download a file, you will be prompted to input a passphrase that allows encryption/decryption. The passphrase=pogacsa
+
+Your folder on the server will start empty, so make a couple folders and upload some files to test the functionality.
+--------------------
+
+Some important assumptions: 
+
+clients will not just lose connection with the server without quitting or without an error prompting a disconnection (this is mostly because on a real network we could detect this type of thing much more easily than ont the fake one.)
+
+When the client must disconnect due to an error on the client side in the case of a timestamp error, we send a message to the server that the user will disconnect, prompting the server to restart it's search for a new connection. It is a known vulnerability that this message could be intercepted and the server would be left waiting for a valid response. In the real world we would rely on higher capabilities of networks like pinging to detect when a user disconnects for any reason to create a more secure protocol.
+
+
+
+
+
+
