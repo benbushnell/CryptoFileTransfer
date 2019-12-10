@@ -32,6 +32,7 @@ user_auth_keys = RSA.generate(2048)
 user_enc_keys = RSA.generate(2048)
 session_key = None
 user_private_file_key = None
+password = None
 
 # ----------------------------
 # ------ PROTOCOL PT 1 -------
@@ -83,6 +84,7 @@ status, svr_msg = netif.receive_msg(blocking=False)
 uid = input("Enter User ID: ")
 
 ##TODO: Garbage collect password
+
 password = getpass("Enter Password: ")
 
 pwmsg = uid + "|" + password + "|" + str(time.time())
@@ -187,6 +189,28 @@ def upload(filepath):
         print('Could not find file. Please try again.')
         return
 
+
+# f is the filename | nonce / file ciphertext / mac
+def download(f):
+    print('Decrypting downloaded file...')
+    try:
+        if user_private_file_key == None:
+            get_user_file_key()
+        delim_pos = f.find("|".encode())
+        filename = f[:delim_pos].decode()
+        nonce = f[delim_pos + 1: delim_pos + 17]
+        ciphertext = f[delim_pos + 17:-16]
+        mac = f[-16:]
+        file_cipher = AES.new(user_private_file_key, AES.MODE_GCM, nonce=nonce)
+        plain = file_cipher.decrypt_and_verify(ciphertext, mac)
+        with open(os.path.join(os.getcwd(), filename), "wb+") as file:
+            file.write(plain)
+        print("Downloaded successfully.")
+    except Exception as e:
+        print(e.with_traceback())
+        return
+
+
 def client_listen():
     print("listening" + str(time.time()))
     status, svr_msg = netif.receive_msg(blocking=True)
@@ -199,32 +223,40 @@ def client_listen():
     mac_tag = svr_msg[-16:]
     ciphertext = svr_msg[16:-16]
     cipher = AES.new(session_key, AES.MODE_GCM, nonce)
+    status, svr_msg = netif.receive_msg(blocking=False)
     try:
         plaintext = cipher.decrypt_and_verify(ciphertext, mac_tag)
     except (ValueError, KeyError):
         print("Invalid Decryption")
-        # TODO: Should the client abort here?
+        terminate_session()
+        exit(1)
         ("Invalid Decryption")
     ts = plaintext[:plaintext.find('|'.encode())].decode()
-    msg_body = plaintext[plaintext.find('|'.encode()) + 1:].decode()
+    msg_body = plaintext[plaintext.find('|'.encode()) + 1:]
     if not functions.is_timestamp_valid(time.time(), float(ts)):
         print("Error: Terminating Connection.")
-        #TODO: Put client termination func call here, kevin
+        terminate_session()
+        exit(1)
     else:
         print("got and decrypted response")
         if header == "SUCCESS":
-            print(msg_body)
-            if str('|') in msg_body:
-                content = msg_body.split('|')
+            if msg_body.decode() == 'QUIT':
+                exit(1)
+            if str('|') in msg_body.decode():
+                content = msg_body.decode().split('|')
                 for item in content:
                     print(item)
             else:
-                print(msg_body)
+                print(msg_body.decode())
         elif header == "FAILURE":
-            print(msg_body)
+            print(msg_body.decode())
         elif header == "DOWNLOAD":
-            #TODO: handle file download once michelle is done with the server send file
-            print("Do this")
+            download(msg_body)
+        elif header == "ERROR":
+            print(msg_body.decode())
+            if msg_body.decode() == "Terminating":
+                return True
+
 
 def get_user_file_key():
     global user_private_file_key
@@ -261,7 +293,13 @@ def decrypt_and_verify_mac(enc_msg):
 
 
 def opt_req_arg(opt):
-    return opt.upper() in {'MKD', 'RMD', 'CWD', 'RMF'}
+    return opt.upper() in {'MKD', 'RMD', 'CWD', 'RMF', 'DNL'}
+
+def terminate_session():
+    cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
+    ciphertext, mac_tag = cipher_protocol_3.encrypt_and_digest((str(time.time()) + "|" + "Quitting Session").encode())
+    msg_3 = "TERMINATE|".encode() + cipher_protocol_3.nonce + ciphertext + mac_tag
+    netif.send_msg(SERVER, msg_3)
 
 
 # SUCCESS
@@ -296,19 +334,7 @@ while True:
             client_listen()
         elif opt.upper() == 'QUIT':
             non_file_op(opt, None)
-
-            msg_header = enc_msg[:enc_msg.find("|".encode())]
-            enc_msg = enc_msg[enc_msg.find("|".encode()) + 1:]
-            enc_msg, verified = decrypt_and_verify_mac(enc_msg)
-
-            print("Quitting")
-            if verified:
-                if not functions.is_timestamp_valid(time.time(), float(msg.decode())):
-                    print("Timestamp is not valid")
-                exit(1)
-            else:
-                print(msg)
-                exit(1)
+            client_listen()
         else:
             print('Invalid command. Try again.')
     elif len(split) == 2:
@@ -318,8 +344,7 @@ while True:
             print('done with upload')
             client_listen()
         elif opt.upper() == 'DNL':
-            # TODO handle downloads
-            print("handle download")
+            non_file_op(opt, arg)
             client_listen()
         elif opt_req_arg(opt):
             non_file_op(opt, arg)
@@ -333,4 +358,7 @@ while True:
         print('Valid command. Try again.')
 
     cont_session = input('Perform another operation? (y/n): ')
-    if cont_session.strip() == 'n': break
+    if cont_session.strip() == 'n':
+        terminate_session()
+        if client_listen():
+            break
