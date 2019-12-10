@@ -61,6 +61,7 @@ while True:
     print("Starting")
     if passphrase == None:
         passphrase = getpass('Server key passphrase: ')
+        print("Passphrase Successful")
 
     # Calling receive_msg() in blocking mode ...
     status, msg = netif.receive_msg(blocking=True)  # when returns, status is True and msg contains a message
@@ -97,7 +98,6 @@ while True:
     # ----------------------------
 
     status, msg = netif.receive_msg(blocking=True)
-    print(serverauth)
     if serverauth:
         if status:
             header = msg[:msg.find('|'.encode())]
@@ -155,6 +155,17 @@ while True:
                                     enc_full_msg = functions.rsa_hybrid_encrypt(final_msg, user_enc_public_key)
 
                                     netif.send_msg(CLIENT, valid_header + enc_full_msg)
+                                    # No error?
+                                    status, msg = netif.receive_msg(blocking=True)
+                                    msg_header = msg[:msg.find("|".encode())]
+                                    msg = msg[msg.find("|".encode())+1:]
+
+                                    if msg_header.decode() == "ERROR":
+                                        msg = functions.rsa_hybrid_decrypt(msg, server_enc_privatekey)
+                                        sig_verified, msg = functions.verify_signature(msg, user_auth_public_key)
+                                        if sig_verified:
+                                            continue
+                                    status, msg = netif.receive_msg(blocking=False)
                                 else:
                                     print("incorrect password--")
                                     error_msg = functions.error_msg("Incorrect Login", server_auth_privatekey,
@@ -164,6 +175,7 @@ while True:
                                     status, msg = netif.receive_msg(blocking=False)
                                     serverauth = False
                                     continue
+
 
                             else:
                                 print("incorrect username")
@@ -389,7 +401,6 @@ while True:
         msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
         netif.send_msg(CLIENT, msg_3)
         return False
-        print('Ending Session')
 
 
     # Todo: Prevent user from moving outside of their own folder.

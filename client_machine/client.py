@@ -92,7 +92,6 @@ msglen = str(len(pwmsg))
 
 # RSA PSS protocol for signature
 hashpwdmsg = SHA256.new(pwmsg.encode())
-print(type(hashpwdmsg))
 sigpwdmsg = pss.new(user_auth_keys).sign(hashpwdmsg)
 
 # Building the message
@@ -113,7 +112,6 @@ header = svr_msg[:svr_msg.find('|'.encode())]
 svr_msg = svr_msg[svr_msg.find('|'.encode()) + 1:]
 
 # Decrypt message body
-print(header.decode())
 msg_received = functions.rsa_hybrid_decrypt(svr_msg, user_enc_keys)
 
 # chop off the key so that we don't find an early delimiter
@@ -126,7 +124,6 @@ else:
     exit(1)
 
 if header.decode() == "ERR":
-
     if not functions.is_timestamp_valid(time.time(), float(msg_key[msg_key.find("|".encode()) + 1:])):
         print("Terminating connection request.")
     else:
@@ -136,10 +133,33 @@ if header.decode() == "ERR":
 elif header.decode() == "VALID":
     if not functions.is_timestamp_valid(time.time(), float(msg_key[16:])):
         print("Terminating connection request.")
+        msg = "Terminating Connection request" + "|" + str(time.time())
+        msglen = str(len(msg))
 
+        # RSA PSS protocol for signature
+        hashmsg = SHA256.new(msg.encode())
+        sigmsg = pss.new(user_auth_keys).sign(hashmsg)
+
+        msg_header = 'ERROR|'.encode()
+        enc_msg = functions.rsa_hybrid_encrypt((msglen + "|" + msg).encode() + sigmsg, server_enc_publickey)
+
+        full_msg = msg_header + enc_msg
+        netif.send_msg(SERVER, full_msg)
         exit(1)
     else:
         session_key = msg_key[:16]
+        msg = "Session started" + "|" + str(time.time())
+        msglen = str(len(msg))
+
+        # RSA PSS protocol for signature
+        hashmsg = SHA256.new(msg.encode())
+        sigmsg = pss.new(user_auth_keys).sign(hashmsg)
+
+        msg_header = 'VALID|'.encode()
+        enc_msg = functions.rsa_hybrid_encrypt((msglen + "|" + msg).encode() + sigmsg, server_enc_publickey)
+
+        full_msg = msg_header + enc_msg
+        netif.send_msg(SERVER, full_msg)
         print("Logged in, session key retrieved")
 
     status, svr_msg = netif.receive_msg(blocking=False)
