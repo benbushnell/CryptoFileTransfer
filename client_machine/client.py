@@ -232,9 +232,7 @@ def download(f):
 
 
 def client_listen():
-    print("listening" + str(time.time()))
     status, svr_msg = netif.receive_msg(blocking=True)
-    print("listen has heard")
     #read header
     header = svr_msg[:svr_msg.find('|'.encode())].decode()
     # remove header
@@ -258,7 +256,6 @@ def client_listen():
         terminate_session()
         exit(1)
     else:
-        print("got and decrypted response")
         if header == "SUCCESS":
             if msg_body.decode() == 'QUIT':
                 exit(1)
@@ -362,7 +359,6 @@ while True:
         arg = split[1]
         if opt == 'UPL':
             upload(arg)
-            print('done with upload')
             client_listen()
         elif opt.upper() == 'DNL':
             non_file_op(opt, arg)

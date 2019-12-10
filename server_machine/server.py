@@ -334,6 +334,7 @@ while True:
             msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
             netif.send_msg(CLIENT, msg_3)
         except Exception as e:
+            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
                 (str(time.time()) + "|" + str(e)).encode())
             msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
@@ -366,7 +367,6 @@ while True:
             (str(time.time()) + "|" + cur_dir_msg).encode())
         msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
         netif.send_msg(CLIENT, msg_3)
-        print("sent" + str(time.time()))
 
 
     def print_dir_content():
@@ -495,7 +495,6 @@ while True:
                 operation = plaintext[delim_pos + 1: delim_pos + 4]
                 argument = plaintext[delim_pos + 4:]
                 if functions.is_timestamp_valid(time.time(), ts):
-                    print(argument.decode())
                     non_file_op(operation.decode(), argument.decode())
                 else:
                     print("Timestamp Error")
@@ -507,7 +506,6 @@ while True:
                 filename = plaintext[delim_pos + 1:plaintext.find("|".encode(), delim_pos + 1)]
                 file = plaintext[plaintext.find("|".encode(), delim_pos + 1) + 1:]
                 if functions.is_timestamp_valid(time.time(), ts):
-                    print("Uploading...")
                     upload_f(file, filename.decode())
                 else:
                     print("Timestamp Error")
