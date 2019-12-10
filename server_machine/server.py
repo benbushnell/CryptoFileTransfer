@@ -208,15 +208,40 @@ while True:
 
     def change_dir(f):
         global USER_PATH
+        global uid
         try:
-            USER_PATH = os.path.join(USER_PATH, f)
-            cur_dir_msg = "Changed to directory {0}.".format(os.path.basename(USER_PATH))
-            cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
-            msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
-                (str(time.time()) + "|" + cur_dir_msg).encode())
-            msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
-            print(len(msg_mac))
-            netif.send_msg(CLIENT, msg_3)
+            if f == '--':
+                print("user path:", USER_PATH)
+                CHANGE_PATH = USER_PATH.rsplit('/', 1)[:-1]
+                print(CHANGE_PATH[0])
+                print("len of change path:", len(CHANGE_PATH[0]))
+                print("len of uid oath:", len(user_path_dic.get(uid.decode())))
+                if len(CHANGE_PATH[0]) >= len(user_path_dic.get(uid.decode())):
+                    USER_PATH = CHANGE_PATH[0]
+                    cur_dir_msg = "Changed to directory {0}.".format(
+                        os.path.basename(USER_PATH))
+                    cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
+                    msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                        (str(time.time()) + "|" + cur_dir_msg).encode())
+                    msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+                    print("successfully changed to this path:", USER_PATH)
+                    netif.send_msg(CLIENT, msg_3)
+                else:
+                    msg_to_send = "You cannot move up one directory."
+                    cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
+                    msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                        (str(time.time()) + "|" + msg_to_send).encode())
+                    msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+                    netif.send_msg(CLIENT, msg_3)
+            else:
+                USER_PATH = os.path.join(USER_PATH, f)
+                cur_dir_msg = "Changed to directory {0}.".format(os.path.basename(USER_PATH))
+                cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
+                msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                    (str(time.time()) + "|" + cur_dir_msg).encode())
+                msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+                print(len(msg_mac))
+                netif.send_msg(CLIENT, msg_3)
         except Exception as e:
             cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
@@ -245,7 +270,7 @@ while True:
 
     def remove_dir(f):
         try:
-            os.rmdir(os.path.join(USER_PATH, f))
+            shutil.rmtree(os.path.join(USER_PATH, f))
             removed_dir_msg = "Directory {0} successfully removed.".format(f)
             cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
@@ -310,8 +335,10 @@ while True:
 
 
     def print_dir_name():
+        #cur_dir_msg = "Current working directory: {0}".format(
+        #    USER_PATH.rsplit('/', 1)[-1])
         cur_dir_msg = "Current working directory: {0}".format(
-            USER_PATH.rsplit('/', 1)[-1])
+            USER_PATH)
         cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
         msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
             (str(time.time()) + "|" + cur_dir_msg).encode())
