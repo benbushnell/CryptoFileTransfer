@@ -232,14 +232,22 @@ while True:
                     msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
                     netif.send_msg(CLIENT, msg_3)
             else:
-                USER_PATH = os.path.join(USER_PATH, f)
-                cur_dir_msg = "Changed to directory {0}.".format(os.path.basename(USER_PATH))
-                cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
-                msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
-                    (str(time.time()) + "|" + cur_dir_msg).encode())
-                msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
-                print(len(msg_mac))
-                netif.send_msg(CLIENT, msg_3)
+                CHANGE_PATH = os.path.join(USER_PATH, f)
+                if os.path.exists(CHANGE_PATH):
+                    USER_PATH = CHANGE_PATH
+                    cur_dir_msg = "Changed to directory {0}.".format(os.path.basename(USER_PATH))
+                    cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
+                    msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                        (str(time.time()) + "|" + cur_dir_msg).encode())
+                    msg_3 = "SUCCESS|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+                    print(len(msg_mac))
+                    netif.send_msg(CLIENT, msg_3)
+                else:
+                    cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
+                    msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
+                        (str(time.time()) + "|" + str(e)).encode())
+                    msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
+                    netif.send_msg(CLIENT, msg_3)
         except Exception as e:
             cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
             msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
