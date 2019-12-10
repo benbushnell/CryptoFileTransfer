@@ -245,7 +245,7 @@ while True:
                 else:
                     cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
                     msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
-                        (str(time.time()) + "|" + str(e)).encode())
+                        (str(time.time()) + "|" + str("This directory does not exist!")).encode())
                     msg_3 = "FAILURE|".encode() + cipher_protocol_3.nonce + msg_txt + msg_mac
                     netif.send_msg(CLIENT, msg_3)
         except Exception as e:
