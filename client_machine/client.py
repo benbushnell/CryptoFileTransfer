@@ -320,6 +320,7 @@ while True:
         if opt == 'HELP':
             print('------------------------------------------------------------------------')
             print('CWD <folder name>: \t Change working directory to this folder')
+            print('CWD -- \t Move one directory up')
             print('MKD <folder name>: \t Create a folder on the server')
             print('RMD <folder name>: \t Remove a folder from the server')
             print('UPL <file name>: \t Upload a file to the server')

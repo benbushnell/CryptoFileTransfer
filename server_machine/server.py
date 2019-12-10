@@ -339,10 +339,8 @@ while True:
 
 
     def print_dir_name():
-        #cur_dir_msg = "Current working directory: {0}".format(
-        #    USER_PATH.rsplit('/', 1)[-1])
         cur_dir_msg = "Current working directory: {0}".format(
-            USER_PATH)
+            USER_PATH.rsplit('/', 1)[-1])
         cipher_protocol_3 = AES.new(session_key, AES.MODE_GCM)
         msg_txt, msg_mac = cipher_protocol_3.encrypt_and_digest(
             (str(time.time()) + "|" + cur_dir_msg).encode())
