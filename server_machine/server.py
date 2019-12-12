@@ -220,7 +220,7 @@ while True:
         global USER_PATH
         global uid
         try:
-            if f == '--':
+            if f == '../':
                 print("user path:", USER_PATH)
                 CHANGE_PATH = USER_PATH.rsplit('/', 1)[:-1]
                 print(CHANGE_PATH[0])
